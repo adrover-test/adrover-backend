@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Adrover.Domain\Adrover.Domain.csproj" />
+    <ProjectReference Include="..\Adrover.Data\Adrover.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="FluentValidation" Version="12.2.0" />
+    <PackageReference Include="MailKit" Version="4.7.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
+    <PackageReference Include="MimeKit" Version="4.7.0" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="Twilio" Version="8.2.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
