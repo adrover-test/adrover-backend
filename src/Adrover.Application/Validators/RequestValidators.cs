@@ -2,6 +2,7 @@ using FluentValidation;
 using Adrover.Application.DTOs.Auth;
 using Adrover.Application.DTOs.Advertisement;
 using Adrover.Application.DTOs.Payment;
+using Adrover.Application.DTOs;
 
 namespace Adrover.Application.Validators;
 
@@ -111,3 +112,80 @@ public class VerifyPaymentRequestValidator : AbstractValidator<VerifyPaymentRequ
             .NotEmpty().WithMessage("Signature is required");
     }
 }
+
+public class UpdateUserProfileRequestValidator : AbstractValidator<UpdateUserProfileRequest>
+{
+    public UpdateUserProfileRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required")
+            .Length(2, 100).WithMessage("Name must be between 2 and 100 characters");
+    }
+}
+
+public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
+{
+    public ChangePasswordRequestValidator()
+    {
+        RuleFor(x => x.CurrentPassword)
+            .NotEmpty().WithMessage("Current password is required");
+
+        RuleFor(x => x.NewPassword)
+            .NotEmpty().WithMessage("New password is required")
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters")
+            .NotEqual(x => x.CurrentPassword).WithMessage("New password must be different from current password")
+            .Matches(@"[A-Z]").WithMessage("Password must contain uppercase letter")
+            .Matches(@"[a-z]").WithMessage("Password must contain lowercase letter")
+            .Matches(@"[0-9]").WithMessage("Password must contain number");
+    }
+}
+
+public class UpdateAdvertisementRequestValidator : AbstractValidator<UpdateAdvertisementRequest>
+{
+    public UpdateAdvertisementRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Campaign name is required")
+            .MaximumLength(255).WithMessage("Campaign name cannot exceed 255 characters");
+
+        RuleFor(x => x.Brand)
+            .NotEmpty().WithMessage("Brand is required")
+            .MaximumLength(255).WithMessage("Brand cannot exceed 255 characters");
+
+        RuleFor(x => x.Description)
+            .NotEmpty().WithMessage("Description is required");
+
+        RuleFor(x => x.TargetArea)
+            .NotEmpty().WithMessage("Target area is required");
+
+        RuleFor(x => x.StartDate)
+            .NotEmpty().WithMessage("Start date is required");
+
+        RuleFor(x => x.EndDate)
+            .NotEmpty().WithMessage("End date is required")
+            .GreaterThan(x => x.StartDate).WithMessage("End date must be after start date");
+
+        RuleFor(x => x.TargetPlays)
+            .GreaterThan(0).WithMessage("Target plays must be greater than 0");
+
+        RuleFor(x => x.AssignedCabs)
+            .GreaterThan(0).WithMessage("Assigned cabs must be greater than 0");
+    }
+}
+
+public class ApprovalDecisionRequestValidator : AbstractValidator<ApprovalDecisionRequest>
+{
+    public ApprovalDecisionRequestValidator()
+    {
+        RuleFor(x => x.AdvertisementId)
+            .NotEmpty().WithMessage("Advertisement ID is required");
+
+        When(x => !x.IsApproved, () =>
+        {
+            RuleFor(x => x.RejectionReason)
+                .NotEmpty().WithMessage("Rejection reason is required when rejecting")
+                .MinimumLength(10).WithMessage("Rejection reason must be at least 10 characters");
+        });
+    }
+}
+

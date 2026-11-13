@@ -10,6 +10,7 @@ using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
 using Adrover.Application.DTOs;
 using Adrover.Application.Validators;
+using Adrover.Application.Services;
 
 namespace Adrover.Api.Configuration;
 
@@ -88,6 +89,10 @@ public static class ServiceConfiguration
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+
+        // Application Services
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IAdvertisementService, AdvertisementService>();
 
         // Validation
         services.AddFluentValidationAutoValidation();

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Adrover.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7d19eb5e7f3035d6cb958ac775d14918dd19e988")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6a9bb0b79eb354ce1c05a2ca96c76d7294809887")]
 [assembly: System.Reflection.AssemblyProductAttribute("Adrover.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Adrover.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
