@@ -93,6 +93,9 @@ public static class ServiceConfiguration
         // Application Services
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IAdvertisementService, AdvertisementService>();
+        services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         // Validation
         services.AddFluentValidationAutoValidation();
