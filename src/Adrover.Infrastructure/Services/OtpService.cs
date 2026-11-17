@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +12,7 @@ public sealed class OtpService(
     IMemoryCache cache,
     IHttpClientFactory clients,
     IConfiguration configuration,
-    IWebHostEnvironment environment,
+    IHostEnvironment environment,
     TimeProvider clock,
     ILogger<OtpService> logger) : IDisposable
 {
