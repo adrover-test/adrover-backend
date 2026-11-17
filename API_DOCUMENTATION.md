@@ -90,7 +90,10 @@ Authorization: Bearer <access_token>
 ---
 
 ### 2. Login
-**POST** `/auth/login`
+**POST** `/auth/login` authenticates any supported account role.
+**POST** `/auth/client-login` uses the same request and response, but only accepts active Client accounts. Client login uses the registered email as the username and does not require OTP.
+
+Both endpoints require the existing `Users`, `RefreshTokens`, and `Wallets` tables; the user lookup also loads an optional wallet. `Users.PasswordHash` stores a password hash, not the password itself. Create client accounts using `/auth/register` or another trusted provisioning process.
 
 **Request Body:**
 ```json

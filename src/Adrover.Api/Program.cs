@@ -34,6 +34,8 @@ try
     {
         app.UseSwagger();
         app.UseSwaggerUI();
+        app.MapGet("/", () => Results.Redirect("/swagger"))
+            .ExcludeFromDescription();
     }
 
     app.UseApplicationMiddleware(app.Environment);

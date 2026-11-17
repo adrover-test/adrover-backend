@@ -1,4 +1,6 @@
 using Adrover.Backend.Services;
+using Adrover.Data.Context;
+using Adrover.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Mail;
 using System.Security.Cryptography;
@@ -9,7 +11,10 @@ namespace Adrover.Backend.Controllers;
 
 [ApiController]
 [Route("api/inquiries")]
-public sealed class InquiryController(InquiryService service, IConfiguration configuration) : ControllerBase
+public sealed class InquiryController(
+    InquiryService service,
+    IConfiguration configuration,
+    AdRoverDbContext dbContext) : ControllerBase
 {
     [HttpPost]
     [RequestSizeLimit(16384)]
@@ -95,6 +100,29 @@ public sealed class InquiryController(InquiryService service, IConfiguration con
         }
 
         var inquiryId = Guid.NewGuid().ToString("N");
+        var normalizedPhone = InquiryService.NormalizePhone(inquiry["phone"]);
+        var enquiry = new Enquiry
+        {
+            Id = Guid.NewGuid(),
+            Name = inquiry["name"],
+            Email = inquiry["email"],
+            Phone = normalizedPhone ?? inquiry["phone"],
+            Subject = inquiry["goal"],
+            Message = string.Join(Environment.NewLine, new[]
+            {
+                $"InquiryId: {inquiryId}",
+                $"Business: {inquiry["business"]}",
+                $"Preferred format: {inquiry["format"]}",
+                $"Additional details: {inquiry["message"]}"
+            }),
+            SourceChannel = "WebForm",
+            Status = "New",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Enquiries.Add(enquiry);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         var results = await service.SendAsync(inquiry, inquiryId, cancellationToken);
         var accepted = results.Count(result => result.Accepted);
         var simulated = results.All(result => result.Simulated);
