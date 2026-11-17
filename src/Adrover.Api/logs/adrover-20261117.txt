@@ -311,3 +311,207 @@ System.AggregateException: Some services are not able to be constructed (Error w
 DenyAnonymousAuthorizationRequirement: Requires an authenticated user.
 2026-11-17 14:27:14.326 +05:30 [INF] AuthenticationScheme: Bearer was challenged.
 2026-11-17 14:27:14.328 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 401 0 null 52.1046ms
+2026-11-17 14:35:52.590 +05:30 [INF] Starting Adrover.Api
+2026-11-17 14:35:52.735 +05:30 [INF] User profile is available. Using 'C:\Users\ADMIN\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-17 14:35:53.202 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-17 14:35:53.207 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-17 14:35:53.326 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-17 14:35:53.330 +05:30 [INF] Hosting environment: Development
+2026-11-17 14:35:53.332 +05:30 [INF] Content root path: C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api
+2026-11-17 14:36:04.024 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 14:36:04.254 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 14:36:04.343 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 14:36:06.461 +05:30 [WRN] The property 'Payment.Metadata' is a collection or enumeration type with a value converter but with no value comparer. Set a value comparer to ensure the collection/enumeration elements are compared correctly.
+2026-11-17 14:36:06.542 +05:30 [WRN] No store type was specified for the decimal property 'ApprovalAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.546 +05:30 [WRN] No store type was specified for the decimal property 'PaidAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.549 +05:30 [WRN] No store type was specified for the decimal property 'VideoDurationSeconds' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.555 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Payment'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.561 +05:30 [WRN] No store type was specified for the decimal property 'Balance' on entity type 'Wallet'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.568 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.574 +05:30 [WRN] No store type was specified for the decimal property 'BalanceAfter' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:06.580 +05:30 [WRN] No store type was specified for the decimal property 'BalanceBefore' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 14:36:43.610 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 14:36:43.735 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 14:36:43.771 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 39412.4365ms
+2026-11-17 14:36:43.776 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 14:36:43.799 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 39779.6196ms
+2026-11-17 14:36:47.666 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 14:36:47.679 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 14:36:47.684 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 14:38:32.978 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at Adrover.Application.Services.PaymentService.CreateOrderAsync(Guid userId, CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Application\Services\PaymentService.cs:line 63
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 40
+2026-11-17 14:38:33.013 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 14:38:33.021 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 105328.9739ms
+2026-11-17 14:38:33.027 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 14:38:33.032 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 105365.8407ms
+2026-11-17 15:00:20.665 +05:30 [INF] Starting Adrover.Api
+2026-11-17 15:00:20.877 +05:30 [INF] User profile is available. Using 'C:\Users\ADMIN\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-17 15:00:21.841 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-17 15:00:21.858 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-17 15:00:22.024 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-17 15:00:22.028 +05:30 [INF] Hosting environment: Development
+2026-11-17 15:00:22.030 +05:30 [INF] Content root path: C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api
+2026-11-17 15:03:39.943 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:03:40.183 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:03:40.254 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:03:42.264 +05:30 [WRN] The property 'Payment.Metadata' is a collection or enumeration type with a value converter but with no value comparer. Set a value comparer to ensure the collection/enumeration elements are compared correctly.
+2026-11-17 15:03:42.341 +05:30 [WRN] No store type was specified for the decimal property 'ApprovalAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.346 +05:30 [WRN] No store type was specified for the decimal property 'PaidAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.349 +05:30 [WRN] No store type was specified for the decimal property 'VideoDurationSeconds' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.354 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Payment'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.358 +05:30 [WRN] No store type was specified for the decimal property 'Balance' on entity type 'Wallet'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.367 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.371 +05:30 [WRN] No store type was specified for the decimal property 'BalanceAfter' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:42.380 +05:30 [WRN] No store type was specified for the decimal property 'BalanceBefore' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:03:55.155 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 15:03:55.270 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:03:55.314 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 15042.4864ms
+2026-11-17 15:03:55.326 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:03:55.350 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 15411.5995ms
+2026-11-17 15:04:11.133 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:04:11.395 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:04:11.399 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:10:48.520 +05:30 [INF] Executed DbCommand (590ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[FullName], [u].[IsActive], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[Phone], [u].[ProfileImageUrl], [u].[Role], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Id] = @p
+2026-11-17 15:10:48.726 +05:30 [WRN] Resource not found: User not found
+2026-11-17 15:10:48.733 +05:30 [INF] Executing NotFoundObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:10:48.740 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 397334.1332ms
+2026-11-17 15:10:48.745 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:10:48.767 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 404 null application/json; charset=utf-8 397634.3579ms
+2026-11-17 15:10:59.549 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:10:59.710 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:10:59.713 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:13:21.456 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 15:13:21.473 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:13:21.483 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 141763.9202ms
+2026-11-17 15:13:21.485 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:13:21.487 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 141938.1422ms
+2026-11-17 15:13:24.863 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:13:24.871 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:13:24.875 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:13:34.745 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 15:13:34.757 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:13:34.765 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 9879.5446ms
+2026-11-17 15:13:34.768 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:13:34.773 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 9909.7663ms
+2026-11-17 15:13:37.541 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:13:37.947 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:13:37.960 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:18:23.491 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 15:18:23.505 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:18:23.510 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 285452.7542ms
+2026-11-17 15:18:23.513 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:18:23.522 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 285980.811ms
+2026-11-17 15:18:36.281 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:18:36.299 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:18:36.301 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:24:48.168 +05:30 [ERR] Error creating payment order for user: "00000000-0000-0000-0000-000000000000"
+Adrover.Application.Exceptions.AuthenticationException: Invalid or missing user ID in token
+   at Adrover.Api.Controllers.PaymentsController.GetUserIdFromToken() in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 262
+   at Adrover.Api.Controllers.PaymentsController.CreateOrder(CreateOrderRequest request) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Controllers\PaymentsController.cs:line 39
+2026-11-17 15:24:48.182 +05:30 [INF] Executing ObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:24:48.186 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 371876.1984ms
+2026-11-17 15:24:48.189 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:24:48.194 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 500 null application/json; charset=utf-8 371912.4412ms
+2026-11-17 15:24:56.940 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:24:56.946 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:24:56.949 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:28:08.470 +05:30 [INF] Starting Adrover.Api
+2026-11-17 15:28:08.836 +05:30 [INF] User profile is available. Using 'C:\Users\ADMIN\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-17 15:28:09.376 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-17 15:28:09.384 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-17 15:28:09.511 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-17 15:28:09.515 +05:30 [INF] Hosting environment: Development
+2026-11-17 15:28:09.519 +05:30 [INF] Content root path: C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api
+2026-11-17 15:28:13.119 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:28:13.622 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:28:13.677 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:28:16.072 +05:30 [WRN] The property 'Payment.Metadata' is a collection or enumeration type with a value converter but with no value comparer. Set a value comparer to ensure the collection/enumeration elements are compared correctly.
+2026-11-17 15:28:16.215 +05:30 [WRN] No store type was specified for the decimal property 'ApprovalAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.218 +05:30 [WRN] No store type was specified for the decimal property 'PaidAmount' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.221 +05:30 [WRN] No store type was specified for the decimal property 'VideoDurationSeconds' on entity type 'Advertisement'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.223 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Payment'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.230 +05:30 [WRN] No store type was specified for the decimal property 'Balance' on entity type 'Wallet'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.235 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.241 +05:30 [WRN] No store type was specified for the decimal property 'BalanceAfter' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:16.246 +05:30 [WRN] No store type was specified for the decimal property 'BalanceBefore' on entity type 'WalletTransaction'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2026-11-17 15:28:43.560 +05:30 [INF] Executed DbCommand (406ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[FullName], [u].[IsActive], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[Phone], [u].[ProfileImageUrl], [u].[Role], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Id] = @p
+2026-11-17 15:30:51.025 +05:30 [INF] Executed DbCommand (283ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [a].[Id], [a].[ActualPlays], [a].[ApprovalAmount], [a].[ApprovedAt], [a].[ApprovedBy], [a].[AssignedCabs], [a].[Brand], [a].[ClientId], [a].[Description], [a].[EndDate], [a].[ImageUrl], [a].[Name], [a].[PaidAmount], [a].[PaymentId], [a].[RejectedAt], [a].[RejectionReason], [a].[StartDate], [a].[Status], [a].[SubmittedAt], [a].[TargetArea], [a].[TargetPlays], [a].[UpdatedAt], [a].[VideoDurationSeconds], [a].[VideoUrl]
+FROM [Advertisements] AS [a]
+WHERE [a].[Id] = @p
+2026-11-17 15:30:54.742 +05:30 [WRN] Resource not found: Advertisement not found
+2026-11-17 15:30:54.765 +05:30 [INF] Executing NotFoundObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:30:54.807 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 161112.9262ms
+2026-11-17 15:30:54.815 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:30:54.857 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 404 null application/json; charset=utf-8 161742.1998ms
+2026-11-17 15:33:27.673 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 15:33:27.936 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:33:27.939 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:33:39.604 +05:30 [INF] Executed DbCommand (283ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[FullName], [u].[IsActive], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[Phone], [u].[ProfileImageUrl], [u].[Role], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Id] = @p
+2026-11-17 15:33:42.057 +05:30 [INF] Executed DbCommand (282ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [a].[Id], [a].[ActualPlays], [a].[ApprovalAmount], [a].[ApprovedAt], [a].[ApprovedBy], [a].[AssignedCabs], [a].[Brand], [a].[ClientId], [a].[Description], [a].[EndDate], [a].[ImageUrl], [a].[Name], [a].[PaidAmount], [a].[PaymentId], [a].[RejectedAt], [a].[RejectionReason], [a].[StartDate], [a].[Status], [a].[SubmittedAt], [a].[TargetArea], [a].[TargetPlays], [a].[UpdatedAt], [a].[VideoDurationSeconds], [a].[VideoUrl]
+FROM [Advertisements] AS [a]
+WHERE [a].[Id] = @p
+2026-11-17 15:33:55.243 +05:30 [WRN] Validation error: Amount must match the advertisement's approved amount
+2026-11-17 15:33:55.246 +05:30 [INF] Executing BadRequestObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:33:55.250 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 27306.2193ms
+2026-11-17 15:33:55.254 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:33:55.259 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 400 null application/json; charset=utf-8 27585.9797ms
+2026-11-17 15:35:13.897 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 113
+2026-11-17 15:35:13.911 +05:30 [INF] Executing endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:35:13.912 +05:30 [INF] Route matched with {action = "CreateOrder", controller = "Payments"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] CreateOrder(Adrover.Application.DTOs.Payment.CreateOrderRequest) on controller Adrover.Api.Controllers.PaymentsController (Adrover.Api).
+2026-11-17 15:35:27.830 +05:30 [INF] Executed DbCommand (278ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[FullName], [u].[IsActive], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[Phone], [u].[ProfileImageUrl], [u].[Role], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Id] = @p
+2026-11-17 15:35:36.710 +05:30 [INF] Executed DbCommand (585ms) [Parameters=[@p='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [a].[Id], [a].[ActualPlays], [a].[ApprovalAmount], [a].[ApprovedAt], [a].[ApprovedBy], [a].[AssignedCabs], [a].[Brand], [a].[ClientId], [a].[Description], [a].[EndDate], [a].[ImageUrl], [a].[Name], [a].[PaidAmount], [a].[PaymentId], [a].[RejectedAt], [a].[RejectionReason], [a].[StartDate], [a].[Status], [a].[SubmittedAt], [a].[TargetArea], [a].[TargetPlays], [a].[UpdatedAt], [a].[VideoDurationSeconds], [a].[VideoUrl]
+FROM [Advertisements] AS [a]
+WHERE [a].[Id] = @p
+2026-11-17 15:36:02.307 +05:30 [INF] Start processing HTTP request POST https://api.razorpay.com/v1/orders
+2026-11-17 15:36:02.318 +05:30 [INF] Sending HTTP request POST https://api.razorpay.com/v1/orders
+2026-11-17 15:36:03.048 +05:30 [INF] Received HTTP response headers after 719.1444ms - 200
+2026-11-17 15:36:03.057 +05:30 [INF] End processing HTTP request after 754.01ms - 200
+2026-11-17 15:36:26.336 +05:30 [INF] Executed DbCommand (337ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = Guid), @p2='?' (Precision = 18) (Scale = 2) (DbType = Decimal), @p3='?' (Size = 50), @p4='?' (Size = 4), @p5='?' (DbType = DateTime2), @p6='?' (Size = 10), @p7='?' (Size = 4000), @p8='?' (DbType = DateTime2), @p9='?' (Size = 4000), @p10='?' (Size = 100), @p11='?' (Size = 100), @p12='?' (Size = 50), @p13='?' (DbType = DateTime2), @p14='?' (Size = 500), @p15='?' (DbType = Int32), @p16='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [Payments] ([Id], [AdvertisementId], [Amount], [CardIssuer], [CardLastFour], [CreatedAt], [Currency], [Description], [FailedAt], [Metadata], [OrderId], [PaymentId], [PaymentMethod], [ProcessedAt], [Signature], [Status], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15, @p16);
+2026-11-17 15:36:27.590 +05:30 [INF] Razorpay order created: order_U1CffntNG4V5zA for user "4bf9c2ec-c11d-473b-9a09-16172da01466"
+2026-11-17 15:36:31.574 +05:30 [INF] Executing OkObjectResult, writing value of type 'Adrover.Application.DTOs.ApiResponse`1[[Adrover.Application.DTOs.Payment.PaymentOrderDto, Adrover.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2026-11-17 15:36:36.472 +05:30 [INF] Executed action Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api) in 82550.6367ms
+2026-11-17 15:36:36.478 +05:30 [INF] Executed endpoint 'Adrover.Api.Controllers.PaymentsController.CreateOrder (Adrover.Api)'
+2026-11-17 15:36:36.481 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 200 null application/json; charset=utf-8 82584.591ms
+2026-11-17 16:15:18.796 +05:30 [INF] Starting Adrover.Api
+2026-11-17 16:15:19.370 +05:30 [INF] User profile is available. Using 'C:\Users\ADMIN\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-17 16:15:20.694 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-17 16:15:20.903 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-17 16:15:21.173 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-17 16:15:21.673 +05:30 [INF] Hosting environment: Development
+2026-11-17 16:15:21.836 +05:30 [INF] Content root path: C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api

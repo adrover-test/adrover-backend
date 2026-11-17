@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Adrover.Application.DTOs.Payment;
 
 public class CreateOrderRequest
@@ -9,8 +11,11 @@ public class CreateOrderRequest
 
 public class VerifyPaymentRequest
 {
+    [Required]
     public string OrderId { get; set; } = string.Empty;
+    [Required]
     public string PaymentId { get; set; } = string.Empty;
+    [Required]
     public string Signature { get; set; } = string.Empty;
 }
 
@@ -33,9 +38,11 @@ public class PaymentDto
 
 public class PaymentOrderDto
 {
-    public string OrderId { get; set; } = string.Empty;
+    public Guid Id { get; set; }
+    public string OrderId {     get; set; } = string.Empty;
     public string KeyId { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public int AmountInPaise { get; set; }
     public string Currency { get; set; } = "INR";
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

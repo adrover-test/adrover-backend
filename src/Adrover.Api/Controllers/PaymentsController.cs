@@ -13,7 +13,7 @@ namespace Adrover.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[AllowAnonymous]
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
@@ -45,6 +45,11 @@ public class PaymentsController : ControllerBase
                 Data = order,
                 Message = "Order created successfully"
             });
+        }
+        catch (AuthenticationException ex)
+        {
+            _logger.LogWarning("Payment authentication failed: {Message}", ex.Message);
+            return Unauthorized(new ApiResponse<PaymentOrderDto> { Success = false, Message = ex.Message });
         }
         catch (NotFoundException ex)
         {
@@ -96,8 +101,13 @@ public class PaymentsController : ControllerBase
             {
                 Success = true,
                 Data = payment,
-                Message = "Payment verified successfully"
+                Message = payment.Status == "Completed" ? "Payment completed successfully" : "Payment status verified"
             });
+        }
+        catch (AuthenticationException ex)
+        {
+            _logger.LogWarning("Payment authentication failed: {Message}", ex.Message);
+            return Unauthorized(new ApiResponse<PaymentDto> { Success = false, Message = ex.Message });
         }
         catch (NotFoundException ex)
         {
@@ -134,16 +144,64 @@ public class PaymentsController : ControllerBase
     }
 
     /// <summary>
-    /// Get a specific payment by ID
+    /// Refresh an order's payment status from Razorpay, capturing an authorized payment if needed
     /// </summary>
-    [HttpGet("{id}")]
+    [HttpGet("orders/{orderId}/status")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> GetOrderStatus(string orderId)
+    {
+        try
+        {
+            var payment = await _paymentService.GetOrderStatusAsync(GetUserIdFromToken(), orderId);
+            return Ok(new ApiResponse<PaymentDto>
+            {
+                Success = true,
+                Data = payment,
+                Message = "Payment status retrieved successfully"
+            });
+        }
+        catch (AuthenticationException ex)
+        {
+            _logger.LogWarning("Payment authentication failed: {Message}", ex.Message);
+            return Unauthorized(new ApiResponse<PaymentDto> { Success = false, Message = ex.Message });
+        }
+        catch (AuthorizationException ex)
+        {
+            _logger.LogWarning("Payment status access denied: {Message}", ex.Message);
+            return Forbid();
+        }
+        catch (NotFoundException ex)
+        {
+            _logger.LogWarning("Payment order not found: {OrderId}", orderId);
+            return NotFound(new ApiResponse<PaymentDto> { Success = false, Message = ex.Message });
+        }
+        catch (Application.Exceptions.ValidationException ex)
+        {
+            _logger.LogWarning("Payment status validation failed: {Message}", ex.Message);
+            return BadRequest(new ApiResponse<PaymentDto> { Success = false, Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing payment status for order: {OrderId}", orderId);
+            return StatusCode(500, new ApiResponse<PaymentDto>
+            {
+                Success = false,
+                Message = "An error occurred while refreshing the payment status"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get a specific payment by its internal ID (stored status)
+    /// </summary>
+    [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetPayment(Guid id)
     {
         Guid userId = Guid.Empty;
         try
         {
             userId = GetUserIdFromToken();
-            var payment = await _paymentService.GetPaymentAsync(id);
+            var payment = await _paymentService.GetPaymentAsync(userId, id);
 
             return Ok(new ApiResponse<PaymentDto>
             {
@@ -151,6 +209,16 @@ public class PaymentsController : ControllerBase
                 Data = payment,
                 Message = "Payment retrieved successfully"
             });
+        }
+        catch (AuthenticationException ex)
+        {
+            _logger.LogWarning("Payment authentication failed: {Message}", ex.Message);
+            return Unauthorized(new ApiResponse<PaymentDto> { Success = false, Message = ex.Message });
+        }
+        catch (AuthorizationException ex)
+        {
+            _logger.LogWarning("Payment access denied: {Message}", ex.Message);
+            return Forbid();
         }
         catch (NotFoundException ex)
         {
@@ -190,6 +258,11 @@ public class PaymentsController : ControllerBase
                 Data = history,
                 Message = $"Retrieved {history.Items.Count} payments"
             });
+        }
+        catch (AuthenticationException ex)
+        {
+            _logger.LogWarning("Payment authentication failed: {Message}", ex.Message);
+            return Unauthorized(new ApiResponse<PaymentHistoryResponse> { Success = false, Message = ex.Message });
         }
         catch (Application.Exceptions.ValidationException ex)
         {
@@ -257,8 +330,9 @@ public class PaymentsController : ControllerBase
 
     private Guid GetUserIdFromToken()
     {
-        var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("nameid");
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("nameid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+        if (User.Identity?.IsAuthenticated != true ||
+            userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId) || userId == Guid.Empty)
             throw new AuthenticationException("Invalid or missing user ID in token");
 
         return userId;
