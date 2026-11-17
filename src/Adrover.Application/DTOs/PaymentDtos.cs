@@ -34,6 +34,7 @@ public class PaymentDto
 public class PaymentOrderDto
 {
     public string OrderId { get; set; } = string.Empty;
+    public string KeyId { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "INR";
     public string Status { get; set; } = string.Empty;

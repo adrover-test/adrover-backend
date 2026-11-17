@@ -4,6 +4,7 @@ using Adrover.Domain.Entities;
 using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Adrover.Application.Services;
 
@@ -48,32 +49,48 @@ public class PaymentService : IPaymentService
         if (advertisement.ClientId != userId)
             throw new AuthorizationException("You can only pay for your own advertisements");
 
-        if (request.Amount <= 0)
-            throw new Application.Exceptions.ValidationException("Amount must be greater than 0");
+        if (advertisement.ApprovalAmount <= 0)
+            throw new Application.Exceptions.ValidationException("The advertisement does not have a payable amount");
+
+        if (request.Amount != advertisement.ApprovalAmount)
+            throw new Application.Exceptions.ValidationException("Amount must match the advertisement's approved amount");
+
+        var amountInPaise = advertisement.ApprovalAmount * 100m;
+        if (amountInPaise != decimal.Truncate(amountInPaise) || amountInPaise > int.MaxValue)
+            throw new Application.Exceptions.ValidationException("Amount must be a valid Razorpay amount in paise");
+
+        var paymentId = Guid.NewGuid();
+        var metadata = new Dictionary<string, string>
+        {
+            { "email", user.Email },
+            { "phone", user.Phone },
+            { "name", user.FullName },
+            { "advertisementId", request.AdvertisementId.ToString() },
+            { "paymentId", paymentId.ToString() }
+        };
+        var razorpayOrder = await _paymentGateway.CreateOrderAsync(
+            advertisement.ApprovalAmount,
+            "INR",
+            $"PAY_{paymentId:N}",
+            metadata);
 
         var payment = new Payment
         {
-            Id = Guid.NewGuid(),
+            Id = paymentId,
             UserId = userId,
             AdvertisementId = request.AdvertisementId,
-            OrderId = GenerateOrderId(),
-            Amount = request.Amount,
+            OrderId = razorpayOrder.Id,
+            Amount = advertisement.ApprovalAmount,
             Currency = "INR",
             Status = PaymentStatus.Pending,
             Description = request.Description,
             CreatedAt = DateTime.UtcNow,
-            Metadata = new Dictionary<string, string>
-            {
-                { "email", user.Email },
-                { "phone", user.Phone },
-                { "name", user.FullName },
-                { "advertisementId", request.AdvertisementId.ToString() }
-            }
+            Metadata = metadata
         };
 
         await _paymentRepository.AddAsync(payment);
 
-        _logger.LogInformation("Order created: {OrderId} for user {UserId}", payment.OrderId, userId);
+        _logger.LogInformation("Razorpay order created: {OrderId} for user {UserId}", payment.OrderId, userId);
 
         return new PaymentOrderDto
         {
@@ -81,7 +98,8 @@ public class PaymentService : IPaymentService
             Amount = payment.Amount,
             Currency = payment.Currency,
             Status = payment.Status.ToString(),
-            CreatedAt = payment.CreatedAt
+            CreatedAt = payment.CreatedAt,
+            KeyId = _paymentGateway.KeyId
         };
     }
 
@@ -97,54 +115,61 @@ public class PaymentService : IPaymentService
         if (payment.Status != PaymentStatus.Pending)
             throw new Application.Exceptions.ValidationException("This payment has already been processed");
 
-        try
+        var isValid = _paymentGateway.VerifyPaymentSignature(
+            payment.OrderId,
+            request.PaymentId,
+            request.Signature);
+
+        if (!isValid)
         {
-            var isValid = _paymentGateway.VerifyPaymentSignature(
-                payment.OrderId,
-                request.PaymentId,
-                request.Signature);
-
-            if (!isValid)
-            {
-                payment.Status = PaymentStatus.Failed;
-                payment.FailedAt = DateTime.UtcNow;
-                await _paymentRepository.UpdateAsync(payment);
-                throw new Application.Exceptions.ValidationException("Payment signature verification failed");
-            }
-
-            payment.Status = PaymentStatus.Completed;
-            payment.PaymentId = request.PaymentId;
-            payment.Signature = request.Signature;
-            payment.ProcessedAt = DateTime.UtcNow;
-
+            payment.Status = PaymentStatus.Failed;
+            payment.FailedAt = DateTime.UtcNow;
             await _paymentRepository.UpdateAsync(payment);
-
-            // Update advertisement as paid
-            if (payment.AdvertisementId.HasValue)
-            {
-                var advertisement = await _advertisementRepository.GetByIdAsync(payment.AdvertisementId.Value);
-                if (advertisement != null)
-                {
-                    advertisement.PaymentId = payment.Id;
-                    advertisement.PaidAmount = payment.Amount;
-                    await _advertisementRepository.UpdateAsync(advertisement);
-                }
-            }
-
-            _logger.LogInformation("Payment verified: {OrderId} with paymentId {PaymentId}", 
-                payment.OrderId, request.PaymentId);
-
-            return MapToPaymentDto(payment);
+            throw new Application.Exceptions.ValidationException("Payment signature verification failed");
         }
-        catch (Application.Exceptions.ValidationException)
+
+        var gatewayPayment = await _paymentGateway.GetPaymentDetailsAsync(request.PaymentId);
+        if (gatewayPayment.OrderId != payment.OrderId ||
+            gatewayPayment.Amount != decimal.ToInt32(payment.Amount * 100m) ||
+            !string.Equals(gatewayPayment.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
         {
-            throw;
+            payment.Status = PaymentStatus.Failed;
+            payment.FailedAt = DateTime.UtcNow;
+            await _paymentRepository.UpdateAsync(payment);
+            throw new Application.Exceptions.ValidationException("Payment details do not match the order");
         }
-        catch (Exception ex)
+
+        payment.PaymentId = gatewayPayment.Id;
+        payment.Signature = request.Signature;
+        payment.PaymentMethod = gatewayPayment.Method;
+        payment.CardLastFour = gatewayPayment.CardLastFour;
+        payment.CardIssuer = gatewayPayment.CardIssuer;
+
+        if (gatewayPayment.Status == "captured")
         {
-            _logger.LogError(ex, "Error verifying payment: {OrderId}", request.OrderId);
-            throw new Application.Exceptions.ValidationException("Failed to verify payment");
+            payment.Status = PaymentStatus.Completed;
+            payment.ProcessedAt = DateTime.UtcNow;
+            await UpdateAdvertisementPaidAmountAsync(payment);
         }
+
+        else if (gatewayPayment.Status == "failed")
+        {
+            payment.Status = PaymentStatus.Failed;
+            payment.FailedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            payment.Status = PaymentStatus.Processing;
+        }
+
+        await _paymentRepository.UpdateAsync(payment);
+        _logger.LogInformation(
+            "Payment status verified: {OrderId}, {PaymentId}, {Status}",
+            payment.OrderId,
+            request.PaymentId,
+            payment.Status);
+
+        return MapToPaymentDto(payment);
     }
 
     public async Task<PaymentDto> GetPaymentAsync(Guid id)
@@ -179,14 +204,110 @@ public class PaymentService : IPaymentService
         };
     }
 
-    public async Task<PaymentDto> ProcessWebhookAsync(string jsonPayload, string signature)
+    public async Task<PaymentDto?> ProcessWebhookAsync(string jsonPayload, string signature)
     {
-        throw new NotImplementedException("Webhook processing requires Razorpay webhook configuration");
+        if (!_paymentGateway.VerifyWebhookSignature(jsonPayload, signature))
+            throw new Application.Exceptions.ValidationException("Webhook signature verification failed");
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(jsonPayload);
+        }
+        catch (JsonException ex)
+        {
+            throw new Application.Exceptions.ValidationException($"Invalid webhook payload: {ex.Message}");
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+            var eventName = root.GetProperty("event").GetString();
+            var targetStatus = eventName switch
+            {
+                "payment.captured" or "order.paid" => PaymentStatus.Completed,
+                "payment.failed" => PaymentStatus.Failed,
+                "payment.authorized" => PaymentStatus.Processing,
+                _ => (PaymentStatus?)null
+            };
+
+            if (targetStatus == null)
+                return null;
+
+            var entity = root.GetProperty("payload").GetProperty("payment").GetProperty("entity");
+            var orderId = entity.GetProperty("order_id").GetString();
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw new Application.Exceptions.ValidationException("Webhook payment has no order ID");
+
+            var payment = await _paymentRepository.FirstOrDefaultAsync(p => p.OrderId == orderId);
+            if (payment == null)
+                throw new NotFoundException("Payment order not found");
+
+            var amount = entity.GetProperty("amount").GetInt32();
+            var currency = entity.GetProperty("currency").GetString();
+            if (amount != decimal.ToInt32(payment.Amount * 100m) ||
+                !string.Equals(currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
+                throw new Application.Exceptions.ValidationException("Webhook payment details do not match the order");
+
+            var wasCompleted = payment.Status == PaymentStatus.Completed;
+            payment.PaymentId = entity.GetProperty("id").GetString() ?? payment.PaymentId;
+            payment.PaymentMethod = GetStringOrEmpty(entity, "method");
+            if (entity.TryGetProperty("card", out var card))
+            {
+                payment.CardLastFour = GetStringOrNull(card, "last4");
+                payment.CardIssuer = GetStringOrNull(card, "issuer");
+            }
+
+            if (!(wasCompleted && targetStatus == PaymentStatus.Failed))
+            {
+                payment.Status = targetStatus.Value;
+                if (targetStatus == PaymentStatus.Completed)
+                {
+                    payment.ProcessedAt ??= DateTime.UtcNow;
+                    await UpdateAdvertisementPaidAmountAsync(payment);
+                }
+                else if (targetStatus == PaymentStatus.Failed)
+                {
+                    payment.FailedAt ??= DateTime.UtcNow;
+                }
+            }
+
+            await _paymentRepository.UpdateAsync(payment);
+            _logger.LogInformation(
+                "Razorpay webhook processed: {OrderId}, event {EventName}",
+                payment.OrderId,
+                eventName);
+
+            return MapToPaymentDto(payment);
+        }
     }
 
-    private static string GenerateOrderId()
+    private async Task UpdateAdvertisementPaidAmountAsync(Payment payment)
     {
-        return $"ORDER_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper()}";
+        if (!payment.AdvertisementId.HasValue)
+            return;
+
+        var advertisement = await _advertisementRepository.GetByIdAsync(payment.AdvertisementId.Value);
+        if (advertisement == null)
+            return;
+
+        advertisement.PaymentId = payment.Id;
+        advertisement.PaidAmount = payment.Amount;
+        await _advertisementRepository.UpdateAsync(advertisement);
+    }
+
+    private static string GetStringOrEmpty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property)
+            ? property.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
+    private static string? GetStringOrNull(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property)
+            ? property.GetString()
+            : null;
     }
 
     private static PaymentDto MapToPaymentDto(Payment payment)

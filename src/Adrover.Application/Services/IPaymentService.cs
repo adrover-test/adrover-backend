@@ -11,5 +11,5 @@ public interface IPaymentService
     Task<PaymentDto> VerifyPaymentAsync(Guid userId, VerifyPaymentRequest request);
     Task<PaymentDto> GetPaymentAsync(Guid id);
     Task<PaymentHistoryResponse> GetPaymentHistoryAsync(Guid userId, int pageNumber = 1, int pageSize = 10);
-    Task<PaymentDto> ProcessWebhookAsync(string jsonPayload, string signature);
+    Task<PaymentDto?> ProcessWebhookAsync(string jsonPayload, string signature);
 }

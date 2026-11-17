@@ -231,6 +231,8 @@ public class PaymentsController : ControllerBase
             }
 
             var payment = await _paymentService.ProcessWebhookAsync(jsonPayload, signature);
+            if (payment == null)
+                return Ok(new { success = true, message = "Webhook event ignored" });
 
             _logger.LogInformation("Webhook processed successfully for order: {OrderId}", payment.OrderId);
 

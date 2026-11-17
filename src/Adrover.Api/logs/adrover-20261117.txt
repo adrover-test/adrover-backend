@@ -57,3 +57,257 @@ System.AggregateException: Some services are not able to be constructed (Error w
    at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
    at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
 
+2026-11-17 13:50:40.194 +05:30 [FTL] Application terminated unexpectedly
+System.AggregateException: Some services are not able to be constructed (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.)
+ ---> System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   at Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(IServiceCollection services, ServiceProviderOptions options)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Program.cs:line 28
+ ---> (Inner Exception #1) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #2) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #3) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+2026-11-17 13:51:59.825 +05:30 [FTL] Application terminated unexpectedly
+System.AggregateException: Some services are not able to be constructed (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.)
+ ---> System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   at Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(IServiceCollection services, ServiceProviderOptions options)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Program.cs:line 28
+ ---> (Inner Exception #1) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #2) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #3) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+2026-11-17 13:54:51.990 +05:30 [FTL] Application terminated unexpectedly
+System.AggregateException: Some services are not able to be constructed (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.)
+ ---> System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   at Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(IServiceCollection services, ServiceProviderOptions options)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Program.cs:line 28
+ ---> (Inner Exception #1) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #2) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #3) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+2026-11-17 13:57:10.897 +05:30 [FTL] Application terminated unexpectedly
+System.AggregateException: Some services are not able to be constructed (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.) (Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.)
+ ---> System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IAdvertisementService Lifetime: Scoped ImplementationType: Adrover.Application.Services.AdvertisementService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Advertisement]' while attempting to activate 'Adrover.Application.Services.AdvertisementService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)
+   at Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(IServiceCollection services, ServiceProviderOptions options)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Program.<Main>$(String[] args) in C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api\Program.cs:line 28
+ ---> (Inner Exception #1) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IPaymentService Lifetime: Scoped ImplementationType: Adrover.Application.Services.PaymentService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Payment]' while attempting to activate 'Adrover.Application.Services.PaymentService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #2) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.IWalletService Lifetime: Scoped ImplementationType: Adrover.Application.Services.WalletService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.Wallet]' while attempting to activate 'Adrover.Application.Services.WalletService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+ ---> (Inner Exception #3) System.InvalidOperationException: Error while validating the service descriptor 'ServiceType: Adrover.Application.Services.INotificationService Lifetime: Scoped ImplementationType: Adrover.Application.Services.NotificationService': Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+ ---> System.InvalidOperationException: Unable to resolve service for type 'Adrover.Data.Repositories.IRepository`1[Adrover.Domain.Entities.User]' while attempting to activate 'Adrover.Application.Services.NotificationService'.
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryResolveCallSite(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo parameter, Boolean throwIfCallSiteNotFound, ServiceIdentifier& parameterServiceIdentifier, ServiceCallSite& callSite)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateArgumentCallSites(ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain, ParameterInfo[] parameters, Boolean throwIfCallSiteNotFound, List`1 resolvedParameters)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateConstructorCallSite(ResultCache lifetime, ServiceIdentifier serviceIdentifier, Type implementationType, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.CreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.TryCreateExact(ServiceDescriptor descriptor, ServiceIdentifier serviceIdentifier, CallSiteChain callSiteChain, Int32 slot)
+   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteFactory.GetCallSite(ServiceDescriptor serviceDescriptor, CallSiteChain callSiteChain)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   --- End of inner exception stack trace ---
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider.ValidateService(ServiceDescriptor descriptor)
+   at Microsoft.Extensions.DependencyInjection.ServiceProvider..ctor(ICollection`1 serviceDescriptors, ServiceProviderOptions options)<---
+
+2026-11-17 14:16:37.432 +05:30 [INF] Starting Adrover.Api
+2026-11-17 14:16:37.761 +05:30 [INF] User profile is available. Using 'C:\Users\ADMIN\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-17 14:16:38.719 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-17 14:16:38.723 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-17 14:16:38.883 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-17 14:16:38.888 +05:30 [INF] Hosting environment: Development
+2026-11-17 14:16:38.896 +05:30 [INF] Content root path: C:\Users\ADMIN\source\repos\adrover-backend\src\Adrover.Api
+2026-11-17 14:25:00.207 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/payments/create-order - application/json 112
+2026-11-17 14:25:00.491 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/payments/create-order - 404 0 null 287.6551ms
+2026-11-17 14:25:00.510 +05:30 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: POST https://localhost:7100/payments/create-order, Response status code: 404
+2026-11-17 14:26:28.266 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/payments/create-order - application/json 112
+2026-11-17 14:26:28.276 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/payments/create-order - 404 0 null 10.8451ms
+2026-11-17 14:26:28.295 +05:30 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: POST https://localhost:7100/payments/create-order, Response status code: 404
+2026-11-17 14:27:14.276 +05:30 [INF] Request starting HTTP/2 POST https://localhost:7100/api/payments/create-order - application/json 112
+2026-11-17 14:27:14.308 +05:30 [INF] Authorization failed. These requirements were not met:
+DenyAnonymousAuthorizationRequirement: Requires an authenticated user.
+2026-11-17 14:27:14.326 +05:30 [INF] AuthenticationScheme: Bearer was challenged.
+2026-11-17 14:27:14.328 +05:30 [INF] Request finished HTTP/2 POST https://localhost:7100/api/payments/create-order - 401 0 null 52.1046ms

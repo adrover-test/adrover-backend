@@ -70,15 +70,7 @@ public static class ServiceConfiguration
             smtpSettings["FromName"] ?? "Adrover"
         ));
 
-        var razorpaySettings = configuration.GetSection("Razorpay");
-        var httpClient = new HttpClient();
-        var logger = LoggerFactory.Create(builder => builder.AddSerilog()).CreateLogger<RazorpayPaymentService>();
-        services.AddSingleton<IPaymentGatewayService>(new RazorpayPaymentService(
-            razorpaySettings["KeyId"] ?? string.Empty,
-            razorpaySettings["KeySecret"] ?? string.Empty,
-            httpClient,
-            logger
-        ));
+        services.AddHttpClient<IPaymentGatewayService, RazorpayPaymentService>();
 
         var azureSettings = configuration.GetSection("AzureBlob");
         services.AddSingleton<IFileStorageService>(new AzureBlobStorageService(
@@ -86,6 +78,7 @@ public static class ServiceConfiguration
         ));
 
         // Repositories
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAdvertisementRepository, AdvertisementRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
