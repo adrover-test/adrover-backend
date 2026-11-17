@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mail;
@@ -9,7 +12,7 @@ namespace Adrover.Backend.Services;
 public sealed class InquiryService(
     IHttpClientFactory clients,
     IConfiguration configuration,
-    IWebHostEnvironment environment,
+    IHostEnvironment environment,
     ILogger<InquiryService> logger)
 {
     public async Task<List<(string Channel, bool Accepted, bool Simulated, string? Error)>> SendAsync(

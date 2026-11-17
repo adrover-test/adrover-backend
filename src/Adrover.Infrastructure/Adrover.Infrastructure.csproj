@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Adrover.Domain\Adrover.Domain.csproj" />
     <ProjectReference Include="..\Adrover.Data\Adrover.Data.csproj" />
   </ItemGroup>
