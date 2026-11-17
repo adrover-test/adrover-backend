@@ -86,7 +86,10 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : class
 
     public virtual async Task<TEntity> UpdateAsync(TEntity entity)
     {
-        _dbSet.Update(entity);
+        var entry = _context.Entry(entity);
+        if (entry.State == EntityState.Detached)
+            _dbSet.Update(entity);
+
         await _context.SaveChangesAsync();
         return entity;
     }

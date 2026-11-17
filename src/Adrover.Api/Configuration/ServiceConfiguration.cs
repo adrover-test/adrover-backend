@@ -1,7 +1,9 @@
 using Adrover.Application.Services;
+using Adrover.Application.Validators;
 using Adrover.Data.Context;
 using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -22,6 +24,8 @@ public static class ServiceConfiguration
         // Database
         services.AddDbContext<AdRoverDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+
+        services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
 
         // JWT Configuration
         var jwtSettings = configuration.GetSection("Jwt");

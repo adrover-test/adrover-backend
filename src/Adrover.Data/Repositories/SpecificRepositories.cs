@@ -9,11 +9,18 @@ public interface IUserRepository : IRepository<User>
     Task<User?> GetByEmailAsync(string email);
     Task<User?> GetByPhoneAsync(string phone);
     Task<IEnumerable<User>> GetByRoleAsync(UserRole role);
+    Task AddRefreshTokenAsync(RefreshToken refreshToken);
 }
 
 public class UserRepository : Repository<User>, IUserRepository
 {
     public UserRepository(AdRoverDbContext context) : base(context) { }
+
+    public async Task AddRefreshTokenAsync(RefreshToken refreshToken)
+    {
+        await _context.RefreshTokens.AddAsync(refreshToken);
+        await _context.SaveChangesAsync();
+    }
 
     public async Task<User?> GetByEmailAsync(string email)
     {
