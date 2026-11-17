@@ -1,16 +1,12 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using FluentValidation;
-using FluentValidation.AspNetCore;
-using Serilog;
+using Adrover.Application.Services;
 using Adrover.Data.Context;
 using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
-using Adrover.Application.DTOs;
-using Adrover.Application.Validators;
-using Adrover.Application.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using System.Text;
 
 namespace Adrover.Api.Configuration;
 
@@ -55,9 +51,15 @@ public static class ServiceConfiguration
 
         services.AddAuthorization();
 
+        // OTP (MSG91)
+        services.AddMemoryCache();
+        services.AddHttpClient("notifications", client => client.Timeout = TimeSpan.FromSeconds(15));
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<Adrover.Backend.Services.OtpService>();
+
         // Infrastructure Services
         services.AddSingleton<IPasswordService, PasswordService>();
-        
+
         var smtpSettings = configuration.GetSection("Smtp");
         services.AddSingleton<IEmailService>(new EmailService(
             smtpSettings["Host"] ?? "smtp.gmail.com",
@@ -96,10 +98,6 @@ public static class ServiceConfiguration
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IWalletService, WalletService>();
         services.AddScoped<INotificationService, NotificationService>();
-
-        // Validation
-        services.AddFluentValidationAutoValidation();
-        services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
 
         // CORS
         var allowedOrigins = configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();

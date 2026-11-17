@@ -8,6 +8,8 @@ using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
 using Adrover.Domain.Entities;
 using Adrover.Domain.Exceptions;
+using Adrover.Backend.Services;
+using System.Text.RegularExpressions;
 
 namespace Adrover.Api.Controllers;
 
@@ -20,6 +22,7 @@ public class AuthController : ControllerBase
     private readonly IPasswordService _passwordService;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly OtpService _otpService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -28,8 +31,10 @@ public class AuthController : ControllerBase
         IPasswordService passwordService,
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator,
+        OtpService otpService,
         ILogger<AuthController> logger)
     {
+        _otpService = otpService;
         _userRepository = userRepository;
         _tokenService = tokenService;
         _passwordService = passwordService;
@@ -118,37 +123,86 @@ public class AuthController : ControllerBase
         if (!_passwordService.VerifyPassword(request.Password, user.PasswordHash))
             throw new AuthenticationException("Invalid email or password");
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
-        var refreshToken = _tokenService.GenerateRefreshToken();
-
-        var refreshTokenEntity = new RefreshToken
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            Token = refreshToken,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
-        };
-
-        user.RefreshTokens.Add(refreshTokenEntity);
-        user.LastLoginAt = DateTime.UtcNow;
-        await _userRepository.UpdateAsync(user);
+        var authResponse = await IssueTokensAsync(user);
 
         _logger.LogInformation("User logged in: {Email}", request.Email);
 
         return Ok(new ApiResponse<AuthResponse>
         {
             Success = true,
-            Data = new AuthResponse
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken,
-                ExpiresIn = 900,
-                TokenType = "Bearer"
-            },
+            Data = authResponse,
             Message = "Login successful"
         });
     }
+
+    [HttpPost("otp/send")]
+    public async Task<IActionResult> SendLoginOtp([FromBody] SendLoginOtpRequest request, CancellationToken cancellationToken)
+    {
+        if (!IsIndianMobile(request.Phone))
+            return Problem("Enter a 10-digit Indian mobile number without +91.", statusCode: 400);
+
+        var result = await _otpService.SendAsync(request.Phone, cancellationToken);
+        return StatusCode(result.StatusCode, result.Body);
+    }
+
+    [HttpPost("otp/verify")]
+    public async Task<IActionResult> VerifyLoginOtp([FromBody] VerifyLoginOtpRequest request, CancellationToken cancellationToken)
+    {
+        if (!IsIndianMobile(request.Phone) || !Regex.IsMatch(request.Otp ?? string.Empty, "^[0-9]{6}\\z"))
+            return Problem("Enter a 10-digit Indian mobile number and a 6-digit OTP.", statusCode: 400);
+
+        var result = await _otpService.VerifyAsync(request.Phone, request.Otp!, cancellationToken);
+        if (result.StatusCode != StatusCodes.Status200OK)
+            return StatusCode(result.StatusCode, result.Body);
+
+        var user = await _userRepository.GetByPhoneAsync(request.Phone)
+            ?? await _userRepository.GetByPhoneAsync($"91{request.Phone}");
+        if (user == null || user.Role != UserRole.Client)
+            throw new AuthenticationException("No client account found for this phone number");
+
+        if (!user.IsActive)
+            throw new AuthenticationException("Account is disabled");
+
+        user.IsPhoneVerified = true;
+        var authResponse = await IssueTokensAsync(user);
+
+        _logger.LogInformation("Client logged in with OTP: {UserId}", user.Id);
+
+        return Ok(new ApiResponse<AuthResponse>
+        {
+            Success = true,
+            Data = authResponse,
+            Message = "Login successful"
+        });
+    }
+
+    private async Task<AuthResponse> IssueTokensAsync(User user)
+    {
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = _tokenService.GenerateRefreshToken();
+
+        user.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = refreshToken,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        });
+        user.LastLoginAt = DateTime.UtcNow;
+        await _userRepository.UpdateAsync(user);
+
+        return new AuthResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresIn = 900,
+            TokenType = "Bearer"
+        };
+    }
+
+    private static bool IsIndianMobile(string? phone) =>
+        Regex.IsMatch(phone ?? string.Empty, "^[6-9][0-9]{9}\\z");
 
     [HttpPost("refresh")]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> RefreshToken([FromBody] RefreshTokenRequest request)
