@@ -40,6 +40,7 @@ public static class ServiceConfiguration
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
+                options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -60,6 +61,7 @@ public static class ServiceConfiguration
         services.AddHttpClient("notifications", client => client.Timeout = TimeSpan.FromSeconds(15));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<Adrover.Backend.Services.OtpService>();
+        services.AddScoped<Adrover.Backend.Services.InquiryService>();
 
         // Infrastructure Services
         services.AddSingleton<IPasswordService, PasswordService>();

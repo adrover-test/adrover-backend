@@ -3,8 +3,6 @@ using Adrover.Data.Context;
 using Adrover.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Mail;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Adrover.Backend.Controllers;
@@ -13,7 +11,6 @@ namespace Adrover.Backend.Controllers;
 [Route("api/inquiries")]
 public sealed class InquiryController(
     InquiryService service,
-    IConfiguration configuration,
     AdRoverDbContext dbContext) : ControllerBase
 {
     [HttpPost]
@@ -22,18 +19,9 @@ public sealed class InquiryController(
         [FromBody] Dictionary<string, string?> fields,
         CancellationToken cancellationToken)
     {
-        var expectedKey = configuration["Inquiry:ApiKey"];
-        if (string.IsNullOrWhiteSpace(expectedKey))
+        if (fields.Count == 0)
         {
-            return Problem("Inquiry API key is not configured.", statusCode: 503);
-        }
-
-        var suppliedKey = Request.Headers["X-Api-Key"].ToString();
-        if (!CryptographicOperations.FixedTimeEquals(
-            SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey)),
-            SHA256.HashData(Encoding.UTF8.GetBytes(expectedKey))))
-        {
-            return Problem("A valid X-Api-Key header is required.", statusCode: 401);
+            return BadRequest(new { message = "Inquiry payload is required." });
         }
 
         string Value(string key) => fields.GetValueOrDefault(key)?.Trim() ?? "";

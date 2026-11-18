@@ -18,6 +18,15 @@ builder.Host.UseSerilog();
 
 try
 {
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowAll", policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+    });
     // Add services
     builder.Services.AddControllers();
     builder.Services.AddApplicationServices(builder.Configuration);
@@ -37,6 +46,7 @@ try
         app.MapGet("/", () => Results.Redirect("/swagger"))
             .ExcludeFromDescription();
     }
+    app.UseCors("AllowAll");
 
     app.UseApplicationMiddleware(app.Environment);
     

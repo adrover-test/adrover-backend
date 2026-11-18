@@ -424,8 +424,12 @@ before running this backend. The migration is additive and can be run again safe
 
 ## Payment Endpoints
 
+Payment routes below include the `/api` prefix. All except the signed webhook require `Authorization: Bearer <access-token>` and only allow access to the current user's payments.
+
+**Flow:** create order -> frontend opens Razorpay Checkout -> customer authorizes payment -> backend verifies the signature and amount, captures if authorized, and returns the status -> frontend redirects only after `Completed`. Creating an order alone cannot capture payment or redirect the customer's browser.
+
 ### 1. Create Payment Order
-**POST** `/payments/orders`
+**POST** `/api/payments/create-order`
 
 **Request Body:**
 ```json
@@ -436,27 +440,32 @@ before running this backend. The migration is additive and can be run again safe
 }
 ```
 
-**Response (201 Created):**
+`amount` is in rupees and must match the advertisement's approved amount for a new order or the stored order amount when retrying. The backend reuses the saved order instead of creating duplicates. If the latest attempt failed and no authorization or capture exists, create-order returns `Pending` so checkout can reopen on the same order; the status endpoint still reports the failed attempt until it is superseded.
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
   "data": {
+    "id": "internal-payment-uuid",
     "orderId": "order_123456789",
+    "keyId": "rzp_test_public_key",
     "amount": 50000,
+    "amountInPaise": 5000000,
     "currency": "INR",
-    "status": "created",
+    "status": "Pending",
     "createdAt": "2026-11-12T10:30:00Z"
   },
-  "message": "Payment order created successfully"
+  "message": "Order created successfully"
 }
 ```
 
----
+Pass `amountInPaise`, not `amount`, to Razorpay Checkout. Only the public key ID is returned; the key secret must remain on the server.
 
-### 2. Verify Payment
-**POST** `/payments/verify`
+### 2. Verify and Capture Payment
+**POST** `/api/payments/verify`
 
-**Request Body:**
+Send Razorpay Checkout's success-handler values:
 ```json
 {
   "orderId": "order_123456789",
@@ -465,82 +474,123 @@ before running this backend. The migration is additive and can be run again safe
 }
 ```
 
-**Response (200 OK):**
+The backend verifies the signature using its stored order ID, fetches the payment from Razorpay, checks its ID, order, amount and currency, then captures it if its status is `authorized`. Already-captured payments are not captured again. Repeating verification, including after a webhook has already completed the payment, is supported. Invalid signatures do not mark a valid order as failed.
+
+**Response (200 OK, abbreviated):**
 ```json
 {
   "success": true,
   "data": {
+    "id": "internal-payment-uuid",
+    "orderId": "order_123456789",
     "paymentId": "pay_123456789",
     "status": "Completed",
     "amount": 50000,
-    "verifiedAt": "2026-11-12T10:35:00Z"
+    "currency": "INR",
+    "processedAt": "2026-11-12T10:35:00Z"
   },
-  "message": "Payment verified successfully"
+  "message": "Payment completed successfully"
 }
 ```
 
-**Error Codes:**
-- `PAY_001` - Invalid signature
-- `PAY_002` - Order not found
-- `PAY_003` - Amount mismatch
-
----
+`success: true` means the API operation succeeded, not necessarily that payment completed. Always inspect `data.status`: `Pending` (no attempt yet), `Processing` (not yet captured), `Completed` (captured), `Failed`, or `Refunded`. Only `Completed` permits the payment-success redirect. Validation errors return 400, unauthenticated requests 401, another user's order 403, and unknown orders 404. Gateway failures return an error, never a fabricated successful payment.
 
 ### 3. Get Payment History
-**GET** `/payments/history`
+**GET** `/api/payments/history?pageNumber=1&pageSize=10`
 
-**Query Parameters:**
-- `skip` (default: 0)
-- `take` (default: 10)
-- `status` (optional) - Completed, Pending, Failed
+`pageNumber` starts at 1; `pageSize` must be between 1 and 100. Returns stored payment DTOs in `data.items`, with `total`, `skip`, and `take`. History does not refresh Razorpay status.
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "data": {
-    "items": [
-      {
-        "paymentId": "pay_123456789",
-        "orderId": "order_123456789",
-        "advertisementId": "uuid",
-        "amount": 50000,
-        "status": "Completed",
-        "paymentMethod": "Card",
-        "transactionDate": "2026-11-12T10:35:00Z"
+### 4. Get Stored Payment Details
+**GET** `/api/payments/{id}`
+
+`id` is the internal payment UUID returned by create-order, not a Razorpay `pay_...` ID. Returns a payment DTO with `orderId`, `paymentId`, `amount`, `currency`, `status`, `paymentMethod`, `cardLastFour`, `cardIssuer`, `createdAt`, `processedAt` and `advertisementId`.
+
+### 5. Refresh Payment Status
+**GET** `/api/payments/orders/{orderId}/status`
+
+Returns the same payment DTO after querying Razorpay. It can recover a payment even if the checkout success callback was lost, selects a successful/authorized attempt ahead of failed attempts, and captures an authorized payment if needed. This is a reconciliation endpoint with possible capture side effects; responses are not cacheable. Poll while status is `Pending` or `Processing`. Do not treat closing checkout as proof of failure; reconcile the order before offering a retry.
+
+### 6. Frontend Checkout Example
+
+Load `https://checkout.razorpay.com/v1/checkout.js` in the frontend. The frontend owns the payment page and final redirect. The following example assumes `accessToken`, `advertisementId`, and `approvedAmount` are available in the authenticated frontend, and that `/payment/success` is a frontend route:
+
+```javascript
+async function paymentApi(path, body) {
+  const response = await fetch(`/api/payments/${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Payment request failed");
+  }
+  return result.data;
+}
+
+async function reconcileOrder(orderId) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const payment = await paymentApi(`orders/${encodeURIComponent(orderId)}/status`);
+    if (payment.status === "Completed") {
+      window.location.assign(`/payment/success?orderId=${encodeURIComponent(orderId)}`);
+      return;
+    }
+    if (payment.status === "Failed" || payment.status === "Refunded") {
+      alert(`Payment status: ${payment.status}`);
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  alert("Payment is still pending. Check its status again before retrying.");
+}
+
+async function startPayment() {
+  const order = await paymentApi("create-order", {
+    advertisementId,
+    amount: approvedAmount,
+    description: "Advertisement payment"
+  });
+  const checkout = new Razorpay({
+    key: order.keyId,
+    order_id: order.orderId,
+    amount: order.amountInPaise,
+    currency: order.currency,
+    name: "Adrover",
+    handler: async result => {
+      try {
+        await paymentApi("verify", {
+          orderId: result.razorpay_order_id,
+          paymentId: result.razorpay_payment_id,
+          signature: result.razorpay_signature
+        });
+        await reconcileOrder(order.orderId);
+      } catch (error) {
+        alert(`${error.message}. Check this order's status before retrying.`);
       }
-    ],
-    "total": 15,
-    "skip": 0,
-    "take": 10
-  }
+    },
+    modal: {
+      ondismiss: () => reconcileOrder(order.orderId).catch(error => alert(error.message))
+    }
+  });
+  checkout.on("payment.failed", event => {
+    alert(event.error.description || "Payment attempt failed. You can retry in checkout.");
+  });
+  checkout.open();
 }
+
+// Call from a Pay button; show create-order and checkout errors to the customer.
+// startPayment().catch(error => alert(error.message));
 ```
 
----
+Persist the returned `orderId` in the frontend's order state so the status check can resume after navigation/reload. A success URL is not proof of payment: the destination page must retrieve the server status too. For a separately hosted frontend, use the backend base URL and configure its existing `AllowedOrigins` setting.
 
-### 4. Get Payment Details
-**GET** `/payments/{paymentId}`
+### 7. Razorpay Webhook
+**POST** `/api/payments/webhook`
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "data": {
-    "paymentId": "pay_123456789",
-    "orderId": "order_123456789",
-    "advertisementId": "uuid",
-    "advertisementName": "Apollo Campaign",
-    "amount": 50000,
-    "status": "Completed",
-    "paymentMethod": "Card",
-    "lastFourDigits": "4242",
-    "issuer": "Visa",
-    "transactionDate": "2026-11-12T10:35:00Z",
-    "receipt": "https://blob.azure.com/receipt.pdf"
-  }
-}
-```
+Configure this HTTPS URL in the Razorpay dashboard and set the matching `Razorpay:WebhookSecret` on the server. Subscribe to `payment.authorized`, `payment.captured`, `payment.failed`, and `order.paid`. The backend validates `X-Razorpay-Signature`, checks the order amount/currency, then reconciles against Razorpay, including capturing authorized payments when the browser has closed. Duplicate or delayed events do not downgrade a completed payment. Ignored event types return 200. Configure `Razorpay:KeyId` and `Razorpay:KeySecret` through secure configuration; use test-mode credentials to validate checkout before live payments.
 
 ---
 

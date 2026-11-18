@@ -32,6 +32,7 @@ public interface IPaymentGatewayService
     bool VerifyWebhookSignature(string payload, string signature);
     Task<RazorpayPaymentDetails> GetPaymentDetailsAsync(string paymentId);
     Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId);
+    Task<RazorpayPaymentDetails> CapturePaymentAsync(string paymentId, int amount, string currency);
 }
 
 public class RazorpayPaymentService : IPaymentGatewayService
@@ -66,10 +67,11 @@ public class RazorpayPaymentService : IPaymentGatewayService
         EnsureApiCredentials();
 
         var amountInMinorUnits = amount * 100m;
-        if (amountInMinorUnits != decimal.Truncate(amountInMinorUnits) ||
+        if (amountInMinorUnits <= 0 ||
+            amountInMinorUnits != decimal.Truncate(amountInMinorUnits) ||
             amountInMinorUnits > int.MaxValue)
         {
-            throw new ArgumentOutOfRangeException(nameof(amount), "Amount must be an exact number of paise and fit in a 32-bit integer.");
+            throw new ArgumentOutOfRangeException(nameof(amount), "Amount must be a positive, exact number of paise and fit in a 32-bit integer.");
         }
 
         var payload = new
@@ -115,18 +117,61 @@ public class RazorpayPaymentService : IPaymentGatewayService
             null,
             _keySecret);
         using var document = await ReadJsonAsync(response);
-        var root = document.RootElement;
+        return ParsePayment(document.RootElement);
+    }
 
+    public async Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId)
+    {
+        EnsureApiCredentials();
+
+        using var response = await SendAsync(
+            HttpMethod.Get,
+            $"/orders/{Uri.EscapeDataString(orderId)}/payments",
+            null,
+            _keySecret);
+        using var document = await ReadJsonAsync(response);
+        return document.RootElement.GetProperty("items").EnumerateArray().Select(ParsePayment).ToList();
+    }
+
+    public async Task<RazorpayPaymentDetails> CapturePaymentAsync(string paymentId, int amount, string currency)
+    {
+        EnsureApiCredentials();
+        if (amount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(amount), "Capture amount must be positive.");
+
+        try
+        {
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                $"/payments/{Uri.EscapeDataString(paymentId)}/capture",
+                new { amount, currency },
+                _keySecret);
+            using var document = await ReadJsonAsync(response);
+            return ParsePayment(document.RootElement);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            // Dashboard auto-capture or another callback may have captured it first.
+            var payment = await GetPaymentDetailsAsync(paymentId);
+            if (payment.Status is "captured" or "refunded")
+                return payment;
+
+            throw;
+        }
+    }
+
+    private static RazorpayPaymentDetails ParsePayment(JsonElement root)
+    {
         string? cardLastFour = null;
         string? cardIssuer = null;
-        if (root.TryGetProperty("card", out var card))
+        if (root.TryGetProperty("card", out var card) && card.ValueKind == JsonValueKind.Object)
         {
             cardLastFour = GetStringOrNull(card, "last4");
             cardIssuer = GetStringOrNull(card, "issuer");
         }
 
         return new RazorpayPaymentDetails(
-            root.GetProperty("id").GetString() ?? paymentId,
+            root.GetProperty("id").GetString() ?? throw new JsonException("Razorpay payment response has no ID."),
             root.GetProperty("order_id").GetString() ?? string.Empty,
             root.GetProperty("amount").GetInt32(),
             root.GetProperty("currency").GetString() ?? string.Empty,
@@ -134,21 +179,6 @@ public class RazorpayPaymentService : IPaymentGatewayService
             root.TryGetProperty("method", out var method) ? method.GetString() ?? string.Empty : string.Empty,
             cardLastFour,
             cardIssuer);
-    }
-
-    public async Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId)
-    {
-        EnsureApiCredentials();
-        using var response = await SendAsync(HttpMethod.Get,
-            $"/orders/{Uri.EscapeDataString(orderId)}/payments", null, _keySecret);
-        using var document = await ReadJsonAsync(response);
-        return document.RootElement.GetProperty("items").EnumerateArray().Select(item => new RazorpayPaymentDetails(
-            item.GetProperty("id").GetString() ?? throw new JsonException("Payment ID missing."),
-            item.GetProperty("order_id").GetString() ?? string.Empty,
-            item.GetProperty("amount").GetInt32(),
-            item.GetProperty("currency").GetString() ?? string.Empty,
-            item.GetProperty("status").GetString() ?? string.Empty,
-            GetStringOrNull(item, "method") ?? string.Empty, null, null)).ToList();
     }
 
     private async Task<HttpResponseMessage> SendAsync(

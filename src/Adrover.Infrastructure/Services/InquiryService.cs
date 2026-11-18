@@ -34,13 +34,6 @@ public sealed class InquiryService(
             }
             return results;
         }
-        if (mode != "Live" || environment.IsDevelopment())
-        {
-            logger.LogWarning("Inquiry {InquiryId}: real notifications are disabled.", inquiryId);
-            return new[] { "email", "whatsapp", "sms" }
-                .Select(channel => (channel, false, false, (string?)"Real notifications are disabled."))
-                .ToList();
-        }
         var http = clients.CreateClient("notifications");
         foreach (var channel in new[] { "email", "whatsapp", "sms" })
         {

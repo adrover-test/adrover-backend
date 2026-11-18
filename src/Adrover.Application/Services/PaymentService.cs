@@ -73,7 +73,10 @@ public class PaymentService : IPaymentService
             .OrderByDescending(p => p.CreatedAt).FirstOrDefault();
         if (existing != null)
         {
-            await ReconcileOrder(existing);
+            if (request.Amount != existing.Amount)
+                throw new Application.Exceptions.ValidationException("Amount must match the existing order amount");
+            if (existing.Status is not (PaymentStatus.Completed or PaymentStatus.Refunded))
+                await RefreshPaymentAsync(existing);
             return MapOrder(existing);
         }
         if (advertisement.PaidAmount > 0)
@@ -129,15 +132,7 @@ public class PaymentService : IPaymentService
 
         _logger.LogInformation("Razorpay order created: {OrderId} for user {UserId}", payment.OrderId, userId);
 
-        return new PaymentOrderDto
-        {
-            OrderId = payment.OrderId,
-            Amount = payment.Amount,
-            Currency = payment.Currency,
-            Status = payment.Status.ToString(),
-            CreatedAt = payment.CreatedAt,
-            KeyId = _paymentGateway.KeyId
-        };
+        return MapOrder(payment);
     }
 
     public async Task<PaymentDto> VerifyPaymentAsync(Guid userId, VerifyPaymentRequest request)
@@ -162,11 +157,6 @@ public class PaymentService : IPaymentService
         if (payment.UserId != userId)
             throw new AuthorizationException("You can only verify your own payments");
 
-        if (payment.Status == PaymentStatus.Completed && payment.PaymentId == request.PaymentId)
-            return MapToPaymentDto(payment);
-        if (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded)
-            throw new Application.Exceptions.ValidationException("This payment has already been processed");
-
         var isValid = _paymentGateway.VerifyPaymentSignature(
             payment.OrderId,
             request.PaymentId,
@@ -175,38 +165,19 @@ public class PaymentService : IPaymentService
         if (!isValid)
             throw new Application.Exceptions.ValidationException("Payment signature verification failed");
 
+        if (payment.Status is PaymentStatus.Completed or PaymentStatus.Refunded)
+        {
+            if (payment.PaymentId != request.PaymentId)
+                throw new Application.Exceptions.ValidationException("The order has already been paid by a different payment");
+            return MapToPaymentDto(payment);
+        }
+
         var gatewayPayment = await _paymentGateway.GetPaymentDetailsAsync(request.PaymentId);
-        if (gatewayPayment.OrderId != payment.OrderId ||
-            gatewayPayment.Amount != decimal.ToInt32(payment.Amount * 100m) ||
-            !string.Equals(gatewayPayment.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new Application.Exceptions.ValidationException("Payment details do not match the order");
-        }
+        if (gatewayPayment.Id != request.PaymentId)
+            throw new Application.Exceptions.ValidationException("Payment ID does not match the verification request");
 
-        payment.PaymentId = gatewayPayment.Id;
         payment.Signature = request.Signature;
-        payment.PaymentMethod = gatewayPayment.Method;
-        payment.CardLastFour = gatewayPayment.CardLastFour;
-        payment.CardIssuer = gatewayPayment.CardIssuer;
-
-        if (gatewayPayment.Status == "captured")
-        {
-            payment.Status = PaymentStatus.Completed;
-            payment.ProcessedAt = DateTime.UtcNow;
-            await UpdateAdvertisementPaidAmountAsync(payment);
-        }
-
-        else if (gatewayPayment.Status == "failed")
-        {
-            payment.Status = PaymentStatus.Failed;
-            payment.FailedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            payment.Status = PaymentStatus.Processing;
-        }
-
-        await _paymentRepository.UpdateAsync(payment);
+        await SynchronizePaymentAsync(payment, gatewayPayment);
         _logger.LogInformation(
             "Payment status verified: {OrderId}, {PaymentId}, {Status}",
             payment.OrderId,
@@ -216,12 +187,33 @@ public class PaymentService : IPaymentService
         return MapToPaymentDto(payment);
     }
 
-    public async Task<PaymentDto> GetPaymentAsync(Guid id)
+    public async Task<PaymentDto> GetPaymentAsync(Guid userId, Guid id)
     {
         var payment = await _paymentRepository.GetByIdAsync(id);
         if (payment == null)
             throw new NotFoundException("Payment not found");
 
+        if (payment.UserId != userId)
+            throw new AuthorizationException("You can only view your own payments");
+
+        return MapToPaymentDto(payment);
+    }
+
+    public async Task<PaymentDto> GetOrderStatusAsync(Guid userId, string orderId)
+    {
+        var order = await _db.Payments.Where(p => p.OrderId == orderId)
+            .Select(p => new { p.UserId, p.AdvertisementId }).SingleOrDefaultAsync();
+        if (order?.AdvertisementId is not Guid campaignId)
+            throw new NotFoundException("Payment order not found");
+        if (order.UserId != userId)
+            throw new AuthorizationException("You can only view your own payments");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockCampaign(campaignId);
+        var payment = await _paymentRepository.FirstOrDefaultAsync(p => p.OrderId == orderId)
+            ?? throw new NotFoundException("Payment order not found");
+        await RefreshPaymentAsync(payment);
+        await transaction.CommitAsync();
         return MapToPaymentDto(payment);
     }
 
@@ -267,15 +259,7 @@ public class PaymentService : IPaymentService
         {
             var root = document.RootElement;
             var eventName = root.GetProperty("event").GetString();
-            var targetStatus = eventName switch
-            {
-                "payment.captured" or "order.paid" => PaymentStatus.Completed,
-                "payment.failed" => PaymentStatus.Failed,
-                "payment.authorized" => PaymentStatus.Processing,
-                _ => (PaymentStatus?)null
-            };
-
-            if (targetStatus == null)
+            if (eventName is not ("payment.captured" or "order.paid" or "payment.failed" or "payment.authorized"))
                 return null;
 
             var entity = root.GetProperty("payload").GetProperty("payment").GetProperty("entity");
@@ -301,30 +285,7 @@ public class PaymentService : IPaymentService
                 !string.Equals(currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
                 throw new Application.Exceptions.ValidationException("Webhook payment details do not match the order");
 
-            var wasCompleted = payment.Status == PaymentStatus.Completed;
-            payment.PaymentId = entity.GetProperty("id").GetString() ?? payment.PaymentId;
-            payment.PaymentMethod = GetStringOrEmpty(entity, "method");
-            if (entity.TryGetProperty("card", out var card))
-            {
-                payment.CardLastFour = GetStringOrNull(card, "last4");
-                payment.CardIssuer = GetStringOrNull(card, "issuer");
-            }
-
-            if (!(wasCompleted && targetStatus == PaymentStatus.Failed))
-            {
-                payment.Status = targetStatus.Value;
-                if (targetStatus == PaymentStatus.Completed)
-                {
-                    payment.ProcessedAt ??= DateTime.UtcNow;
-                    await UpdateAdvertisementPaidAmountAsync(payment);
-                }
-                else if (targetStatus == PaymentStatus.Failed)
-                {
-                    payment.FailedAt ??= DateTime.UtcNow;
-                }
-            }
-
-            await _paymentRepository.UpdateAsync(payment);
+            await RefreshPaymentAsync(payment);
             await transaction.CommitAsync();
             _logger.LogInformation(
                 "Razorpay webhook processed: {OrderId}, event {EventName}",
@@ -335,6 +296,93 @@ public class PaymentService : IPaymentService
         }
     }
 
+    private async Task RefreshPaymentAsync(Payment payment)
+    {
+        RazorpayPaymentDetails? gatewayPayment;
+        if ((payment.Status is PaymentStatus.Completed or PaymentStatus.Refunded) &&
+            !string.IsNullOrEmpty(payment.PaymentId))
+        {
+            gatewayPayment = await _paymentGateway.GetPaymentDetailsAsync(payment.PaymentId);
+            if (gatewayPayment.Id != payment.PaymentId)
+                throw new Application.Exceptions.ValidationException("Payment ID does not match the stored payment");
+        }
+        else
+        {
+            var attempts = await _paymentGateway.GetOrderPaymentsAsync(payment.OrderId);
+            gatewayPayment = attempts.OrderBy(p => p.Status switch
+            {
+                "captured" => 0,
+                "refunded" => 1,
+                "authorized" => 2,
+                "created" => 3,
+                "failed" => 4,
+                _ => 5
+            }).FirstOrDefault();
+        }
+
+        if (gatewayPayment != null)
+            await SynchronizePaymentAsync(payment, gatewayPayment);
+    }
+
+    private static void ValidatePaymentDetails(Payment payment, RazorpayPaymentDetails gatewayPayment)
+    {
+        if (string.IsNullOrWhiteSpace(gatewayPayment.Id) ||
+            gatewayPayment.OrderId != payment.OrderId ||
+            gatewayPayment.Amount != decimal.ToInt32(payment.Amount * 100m) ||
+            !string.Equals(gatewayPayment.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
+            throw new Application.Exceptions.ValidationException("Payment details do not match the order");
+    }
+
+    private async Task SynchronizePaymentAsync(Payment payment, RazorpayPaymentDetails gatewayPayment)
+    {
+        ValidatePaymentDetails(payment, gatewayPayment);
+        if (payment.Status == PaymentStatus.Refunded ||
+            (payment.Status == PaymentStatus.Completed && gatewayPayment.Status is not ("captured" or "refunded")))
+            return;
+
+        if (gatewayPayment.Status == "authorized")
+        {
+            var captured = await _paymentGateway.CapturePaymentAsync(
+                gatewayPayment.Id, decimal.ToInt32(payment.Amount * 100m), payment.Currency);
+            if (captured.Id != gatewayPayment.Id)
+                throw new Application.Exceptions.ValidationException("Captured payment ID does not match the authorized payment");
+
+            ValidatePaymentDetails(payment, captured);
+            gatewayPayment = captured;
+        }
+
+        var status = gatewayPayment.Status switch
+        {
+            "captured" => PaymentStatus.Completed,
+            "refunded" => PaymentStatus.Refunded,
+            "failed" => PaymentStatus.Failed,
+            "created" or "authorized" => PaymentStatus.Processing,
+            _ => throw new Application.Exceptions.ValidationException($"Unsupported Razorpay payment status: {gatewayPayment.Status}")
+        };
+
+        payment.PaymentId = gatewayPayment.Id;
+        payment.PaymentMethod = gatewayPayment.Method;
+        payment.CardLastFour = gatewayPayment.CardLastFour;
+        payment.CardIssuer = gatewayPayment.CardIssuer;
+        payment.Status = status;
+        if (status == PaymentStatus.Completed)
+        {
+            payment.ProcessedAt ??= DateTime.UtcNow;
+            payment.FailedAt = null;
+            await UpdateAdvertisementPaidAmountAsync(payment);
+        }
+        else if (status == PaymentStatus.Failed)
+        {
+            payment.FailedAt ??= DateTime.UtcNow;
+        }
+        else if (status == PaymentStatus.Processing)
+        {
+            payment.FailedAt = null;
+        }
+
+        await _paymentRepository.UpdateAsync(payment);
+    }
+
     private async Task UpdateAdvertisementPaidAmountAsync(Payment payment)
     {
         if (!payment.AdvertisementId.HasValue)
@@ -342,7 +390,7 @@ public class PaymentService : IPaymentService
 
         var advertisement = await _advertisementRepository.GetByIdAsync(payment.AdvertisementId.Value);
         if (advertisement == null)
-            return;
+            throw new NotFoundException("Advertisement for the payment not found");
 
         advertisement.PaymentId = payment.Id;
         advertisement.PaidAmount = payment.Amount;
@@ -354,49 +402,15 @@ public class PaymentService : IPaymentService
 
     private PaymentOrderDto MapOrder(Payment payment) => new()
     {
+        Id = payment.Id,
         OrderId = payment.OrderId,
         KeyId = _paymentGateway.KeyId,
         Amount = payment.Amount,
+        AmountInPaise = decimal.ToInt32(payment.Amount * 100m),
         Currency = payment.Currency,
-        Status = payment.Status.ToString(),
+        Status = (payment.Status == PaymentStatus.Failed ? PaymentStatus.Pending : payment.Status).ToString(),
         CreatedAt = payment.CreatedAt
     };
-
-    private async Task ReconcileOrder(Payment payment)
-    {
-        if (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded)
-            return;
-        var attempts = await _paymentGateway.GetOrderPaymentsAsync(payment.OrderId);
-        if (attempts.Any(p => p.OrderId != payment.OrderId || p.Amount != decimal.ToInt32(payment.Amount * 100m) || p.Currency != payment.Currency))
-            throw new Application.Exceptions.ValidationException("Gateway payment details do not match the order.");
-        var captured = attempts.FirstOrDefault(p => p.Status == "captured");
-        if (captured != null)
-        {
-            payment.PaymentId = captured.Id;
-            payment.Status = PaymentStatus.Completed;
-            payment.ProcessedAt ??= DateTime.UtcNow;
-            await UpdateAdvertisementPaidAmountAsync(payment);
-        }
-        else
-        {
-            payment.Status = attempts.Any(p => p.Status == "authorized") ? PaymentStatus.Processing : PaymentStatus.Pending;
-        }
-        await _paymentRepository.UpdateAsync(payment);
-    }
-
-    private static string GetStringOrEmpty(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var property)
-            ? property.GetString() ?? string.Empty
-            : string.Empty;
-    }
-
-    private static string? GetStringOrNull(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var property)
-            ? property.GetString()
-            : null;
-    }
 
     private static PaymentDto MapToPaymentDto(Payment payment)
     {

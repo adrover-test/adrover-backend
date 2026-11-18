@@ -104,19 +104,30 @@ try
     Check(gateway.OrderCount == 0, "Incorrect amount must not create an order");
     var orders = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = id, amount = 15750 })));
     var orderBodies = await Task.WhenAll(orders.Select(Data<JsonElement>));
-    Check(gateway.OrderCount == 1 && orderBodies.All(o => o.GetProperty("orderId").GetString() == "order_test_1"), "Concurrent checkout must reuse one order");
+    var paymentRecordId = orderBodies[0].GetProperty("id").GetGuid();
+    Check(paymentRecordId != Guid.Empty && gateway.OrderCount == 1 && orderBodies.All(o =>
+        o.GetProperty("orderId").GetString() == "order_test_1" && o.GetProperty("id").GetGuid() == paymentRecordId &&
+        o.GetProperty("amountInPaise").GetInt32() == 1575000), "Concurrent checkout must reuse one order with consistent internal ID and paise amount");
     await ExpectStatus(await resumed.PutAsJsonAsync($"/api/Advertisements/drafts/{id}", progress), HttpStatusCode.UnprocessableEntity);
     await ExpectStatus(await Upload(resumed, id, "video", "replacement.mp4"), HttpStatusCode.BadRequest);
     await ExpectStatus(await resumed.PostAsJsonAsync("/api/Payments/verify", new { orderId = "order_test_1", paymentId = "pay_test", signature = "invalid" }), HttpStatusCode.BadRequest);
-    gateway.Payments["order_test_1"] = new RazorpayPaymentDetails("pay_test", "order_test_1", 1575000, "INR", "authorized", "upi", null, null);
-    var processing = await Data<JsonElement>(await resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = id, amount = 15750 }));
-    Check(processing.GetProperty("status").GetString() == "Processing", "Authorized payments must block a second checkout");
-    gateway.Payments["order_test_1"] = gateway.Payments["order_test_1"] with { Status = "captured" };
-    var completed = await Data<JsonElement>(await resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = id, amount = 15750 }));
-    Check(completed.GetProperty("status").GetString() == "Completed" && gateway.OrderCount == 1, "Disconnect recovery must recognize capture without another charge");
+    const string statusUrl = "/api/Payments/orders/order_test_1/status";
+    await ExpectStatus(await anonymous.GetAsync(statusUrl), HttpStatusCode.Forbidden);
+    await ExpectStatus(await anonymous.GetAsync($"/api/Payments/{paymentRecordId}"), HttpStatusCode.Forbidden);
+    gateway.Payments["order_test_1"] = new RazorpayPaymentDetails("pay_test", "order_test_1", 1575000, "INR", "failed", "upi", null, null);
+    var failed = await Data<JsonElement>(await resumed.GetAsync(statusUrl));
+    Check(failed.GetProperty("status").GetString() == "Failed", "The status endpoint must report failed attempts");
+    var retry = await Data<JsonElement>(await resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = id, amount = 15750 }));
+    Check(retry.GetProperty("status").GetString() == "Pending" && gateway.OrderCount == 1, "Retry must reopen the same order after a failed attempt");
+    gateway.Payments["order_test_1"] = gateway.Payments["order_test_1"] with { Status = "authorized" };
+    var statusChecks = await Task.WhenAll(resumed.GetAsync(statusUrl), resumed.GetAsync(statusUrl));
+    var completed = await Task.WhenAll(statusChecks.Select(Data<JsonElement>));
+    Check(completed.All(p => p.GetProperty("status").GetString() == "Completed") && gateway.OrderCount == 1 && gateway.CaptureCount == 1,
+        "Concurrent recovery must capture the authorized payment exactly once and reuse the order");
     restored = await Draft(resumed, id);
     Check(restored.PaidAmount == 15750 && restored.Status == "PendingApproval", "Verified payment must persist and submit draft for review");
     await ExpectStatus(await resumed.PostAsJsonAsync("/api/Payments/verify", new { orderId = "order_test_1", paymentId = "pay_test", signature = "valid" }), HttpStatusCode.OK);
+    await ExpectStatus(await resumed.PostAsJsonAsync("/api/Payments/verify", new { orderId = "order_test_1", paymentId = "pay_test", signature = "invalid" }), HttpStatusCode.BadRequest);
     var webhook = new { @event = "payment.authorized", payload = new { payment = new { entity = new { id = "pay_test", order_id = "order_test_1", amount = 1575000, currency = "INR", method = "upi" } } } };
     using var webhookRequest = new HttpRequestMessage(HttpMethod.Post, "/api/Payments/webhook") { Content = JsonContent.Create(webhook) };
     webhookRequest.Headers.Add("X-Razorpay-Signature", "valid");
@@ -233,7 +244,9 @@ static async Task<HttpResponseMessage> Upload(HttpClient client, Guid id, string
 sealed class TestGateway : IPaymentGatewayService
 {
     private int _orderCount;
+    private int _captureCount;
     public int OrderCount => _orderCount;
+    public int CaptureCount => _captureCount;
     public string KeyId => "rzp_test_fixture";
     public ConcurrentDictionary<string, RazorpayPaymentDetails> Payments { get; } = new();
     public Task<RazorpayOrder> CreateOrderAsync(decimal amount, string currency, string receipt, Dictionary<string, string> notes) =>
@@ -243,6 +256,22 @@ sealed class TestGateway : IPaymentGatewayService
     public Task<RazorpayPaymentDetails> GetPaymentDetailsAsync(string paymentId) => Task.FromResult(Payments.Values.Single(p => p.Id == paymentId));
     public Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId) =>
         Task.FromResult<IReadOnlyList<RazorpayPaymentDetails>>(Payments.TryGetValue(orderId, out var payment) ? [payment] : []);
+    public async Task<RazorpayPaymentDetails> CapturePaymentAsync(string paymentId, int amount, string currency)
+    {
+        Interlocked.Increment(ref _captureCount);
+        var payment = await GetPaymentDetailsAsync(paymentId);
+        CheckCapture(payment, amount, currency);
+        var captured = payment with { Status = "captured" };
+        if (!Payments.TryUpdate(payment.OrderId, captured, payment))
+            throw new InvalidOperationException("Concurrent capture detected");
+        return captured;
+    }
+
+    private static void CheckCapture(RazorpayPaymentDetails payment, int amount, string currency)
+    {
+        if (payment.Status != "authorized" || payment.Amount != amount || payment.Currency != currency)
+            throw new InvalidOperationException("Only the full authorized amount may be captured");
+    }
 }
 sealed class TestStorage : IFileStorageService
 {

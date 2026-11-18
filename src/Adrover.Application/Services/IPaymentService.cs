@@ -9,7 +9,8 @@ public interface IPaymentService
 {
     Task<PaymentOrderDto> CreateOrderAsync(Guid userId, CreateOrderRequest request);
     Task<PaymentDto> VerifyPaymentAsync(Guid userId, VerifyPaymentRequest request);
-    Task<PaymentDto> GetPaymentAsync(Guid id);
+    Task<PaymentDto> GetPaymentAsync(Guid userId, Guid id);
+    Task<PaymentDto> GetOrderStatusAsync(Guid userId, string orderId);
     Task<PaymentHistoryResponse> GetPaymentHistoryAsync(Guid userId, int pageNumber = 1, int pageSize = 10);
     Task<PaymentDto?> ProcessWebhookAsync(string jsonPayload, string signature);
 }
