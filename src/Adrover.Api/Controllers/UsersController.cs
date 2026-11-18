@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using FluentValidation;
@@ -300,10 +301,10 @@ public class UsersController : ControllerBase
     /// </summary>
     private Guid GetUserIdFromToken()
     {
-        var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("nameid");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub") ?? User.FindFirst("nameid");
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
         {
-            throw new AuthenticationException("Invalid user token");
+            throw new Adrover.Domain.Exceptions.AuthenticationException("Please sign in again.");
         }
         return userId;
     }

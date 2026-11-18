@@ -79,6 +79,13 @@ public class AuthController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
+        if (request.Advertisement != null)
+        {
+            if (roleEnum != UserRole.Client)
+                throw new BusinessLogicException("Only clients can register an advertisement.");
+            user.Advertisements.Add(request.Advertisement.CreateAdvertisement(user.Id));
+        }
+
         var newUser = await _userRepository.AddAsync(user);
         
         // Create wallet for clients

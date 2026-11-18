@@ -5,6 +5,8 @@ using Adrover.Domain.Entities;
 using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
+using Adrover.Data.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace Adrover.Application.Services;
 
@@ -18,6 +20,7 @@ public class AdvertisementService : IAdvertisementService
     private readonly IRepository<User> _userRepository;
     private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<AdvertisementService> _logger;
+    private readonly AdRoverDbContext _db;
 
     private const long MaxVideoFileSize = 100 * 1024 * 1024; // 100MB
     private const long MaxImageFileSize = 10 * 1024 * 1024; // 10MB
@@ -29,8 +32,10 @@ public class AdvertisementService : IAdvertisementService
         IRepository<AdPlay> adPlayRepository,
         IRepository<User> userRepository,
         IFileStorageService fileStorageService,
-        ILogger<AdvertisementService> logger)
+        ILogger<AdvertisementService> logger,
+        AdRoverDbContext db)
     {
+        _db = db;
         _advertisementRepository = advertisementRepository;
         _adPlayRepository = adPlayRepository;
         _userRepository = userRepository;
@@ -49,7 +54,7 @@ public class AdvertisementService : IAdvertisementService
 
     public async Task<AdvertisementListResponse> GetClientAdvertisementsAsync(Guid clientId, int pageNumber = 1, int pageSize = 10)
     {
-        if (pageNumber < 1 || pageSize < 1 || pageSize > 100)
+        if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
             throw new Application.Exceptions.ValidationException("Invalid pagination parameters");
 
         var advertisements = await _advertisementRepository.FindAsync(ad => ad.ClientId == clientId);
@@ -138,6 +143,8 @@ public class AdvertisementService : IAdvertisementService
         if (advertisement.ClientId != clientId)
             throw new AuthorizationException("You can only update your own advertisements");
 
+        if (advertisement.RegistrationProgress != null)
+            throw new Application.Exceptions.ValidationException("Registration campaigns must be edited through their draft setup before checkout.");
         if (advertisement.Status != AdvertisementStatus.PendingApproval)
             throw new Application.Exceptions.ValidationException("Can only update advertisements in pending approval status");
 
@@ -285,6 +292,8 @@ public class AdvertisementService : IAdvertisementService
 
     public async Task<FileUploadResponse> UploadVideoAsync(Guid advertisementId, Guid clientId, Stream fileStream, string fileName)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockUpload(advertisementId);
         var advertisement = await _advertisementRepository.GetByIdAsync(advertisementId);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {advertisementId} not found");
@@ -306,6 +315,7 @@ public class AdvertisementService : IAdvertisementService
         advertisement.VideoUrl = fileUrl;
         advertisement.UpdatedAt = DateTime.UtcNow;
         await _advertisementRepository.UpdateAsync(advertisement);
+        await transaction.CommitAsync();
 
         _logger.LogInformation("Video uploaded for advertisement: {AdvertisementId}", advertisementId);
 
@@ -319,6 +329,8 @@ public class AdvertisementService : IAdvertisementService
 
     public async Task<FileUploadResponse> UploadImageAsync(Guid advertisementId, Guid clientId, Stream fileStream, string fileName)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockUpload(advertisementId);
         var advertisement = await _advertisementRepository.GetByIdAsync(advertisementId);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {advertisementId} not found");
@@ -340,6 +352,7 @@ public class AdvertisementService : IAdvertisementService
         advertisement.ImageUrl = fileUrl;
         advertisement.UpdatedAt = DateTime.UtcNow;
         await _advertisementRepository.UpdateAsync(advertisement);
+        await transaction.CommitAsync();
 
         _logger.LogInformation("Image uploaded for advertisement: {AdvertisementId}", advertisementId);
 
@@ -349,6 +362,14 @@ public class AdvertisementService : IAdvertisementService
             FileSize = fileStream.Length,
             UploadedAt = DateTime.UtcNow
         };
+    }
+
+    private async Task LockUpload(Guid id)
+    {
+        var ad = await _db.Advertisements.FromSqlInterpolated(
+            $"SELECT * FROM [Advertisements] WITH (UPDLOCK) WHERE [Id] = {id}").SingleOrDefaultAsync();
+        if (ad?.RegistrationProgress != null && await _db.Payments.AnyAsync(p => p.AdvertisementId == id))
+            throw new Application.Exceptions.ValidationException("Creative uploads are locked after checkout starts.");
     }
 
     private static AdvertisementDto MapToAdvertisementDto(Advertisement ad)

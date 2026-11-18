@@ -10,7 +10,8 @@ public enum AdvertisementStatus
     Active = 3,
     Completed = 4,
     Rejected = 5,
-    Cancelled = 6
+    Cancelled = 6,
+    Draft = 7
 }
 
 /// <summary>
@@ -24,7 +25,8 @@ public class Advertisement
     public string Brand { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string TargetArea { get; set; } = string.Empty;
-    
+    public string? RegistrationProgress { get; set; }
+
     public string? VideoUrl { get; set; }
     public string? ImageUrl { get; set; }
     public decimal VideoDurationSeconds { get; set; }

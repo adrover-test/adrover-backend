@@ -5,6 +5,8 @@ using Adrover.Data.Repositories;
 using Adrover.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Adrover.Data.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace Adrover.Application.Services;
 
@@ -19,6 +21,7 @@ public class PaymentService : IPaymentService
     private readonly IRepository<Wallet> _walletRepository;
     private readonly IPaymentGatewayService _paymentGateway;
     private readonly ILogger<PaymentService> _logger;
+    private readonly AdRoverDbContext _db;
 
     public PaymentService(
         IRepository<Payment> paymentRepository,
@@ -26,8 +29,10 @@ public class PaymentService : IPaymentService
         IRepository<User> userRepository,
         IRepository<Wallet> walletRepository,
         IPaymentGatewayService paymentGateway,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        AdRoverDbContext db)
     {
+        _db = db;
         _paymentRepository = paymentRepository;
         _advertisementRepository = advertisementRepository;
         _userRepository = userRepository;
@@ -37,6 +42,21 @@ public class PaymentService : IPaymentService
     }
 
     public async Task<PaymentOrderDto> CreateOrderAsync(Guid userId, CreateOrderRequest request)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockCampaign(request.AdvertisementId);
+        var result = await CreateOrderCoreAsync(userId, request);
+        await transaction.CommitAsync();
+        return result;
+    }
+
+    private async Task LockCampaign(Guid id)
+    {
+        await _db.Advertisements.FromSqlInterpolated(
+            $"SELECT * FROM [Advertisements] WITH (UPDLOCK) WHERE [Id] = {id}").LoadAsync();
+    }
+
+    private async Task<PaymentOrderDto> CreateOrderCoreAsync(Guid userId, CreateOrderRequest request)
     {
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
@@ -48,6 +68,23 @@ public class PaymentService : IPaymentService
 
         if (advertisement.ClientId != userId)
             throw new AuthorizationException("You can only pay for your own advertisements");
+
+        var existing = (await _paymentRepository.FindAsync(p => p.AdvertisementId == advertisement.Id))
+            .OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+        if (existing != null)
+        {
+            await ReconcileOrder(existing);
+            return MapOrder(existing);
+        }
+        if (advertisement.PaidAmount > 0)
+            throw new Application.Exceptions.ValidationException("This campaign already has a payment. Contact support before paying again.");
+        if (advertisement.RegistrationProgress != null)
+        {
+            if (advertisement.Status != AdvertisementStatus.Draft)
+                throw new Application.Exceptions.ValidationException("This registration is no longer awaiting checkout.");
+            RegistrationDraftWorkflow.PrepareCheckout(advertisement);
+            await _advertisementRepository.UpdateAsync(advertisement);
+        }
 
         if (advertisement.ApprovalAmount <= 0)
             throw new Application.Exceptions.ValidationException("The advertisement does not have a payable amount");
@@ -105,6 +142,19 @@ public class PaymentService : IPaymentService
 
     public async Task<PaymentDto> VerifyPaymentAsync(Guid userId, VerifyPaymentRequest request)
     {
+        var campaignId = await _db.Payments.Where(p => p.OrderId == request.OrderId && p.UserId == userId)
+            .Select(p => p.AdvertisementId).SingleOrDefaultAsync();
+        if (!campaignId.HasValue)
+            throw new NotFoundException("Payment order not found");
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockCampaign(campaignId.Value);
+        var result = await VerifyPaymentCoreAsync(userId, request);
+        await transaction.CommitAsync();
+        return result;
+    }
+
+    private async Task<PaymentDto> VerifyPaymentCoreAsync(Guid userId, VerifyPaymentRequest request)
+    {
         var payment = await _paymentRepository.FirstOrDefaultAsync(p => p.OrderId == request.OrderId);
         if (payment == null)
             throw new NotFoundException("Payment order not found");
@@ -112,7 +162,9 @@ public class PaymentService : IPaymentService
         if (payment.UserId != userId)
             throw new AuthorizationException("You can only verify your own payments");
 
-        if (payment.Status != PaymentStatus.Pending)
+        if (payment.Status == PaymentStatus.Completed && payment.PaymentId == request.PaymentId)
+            return MapToPaymentDto(payment);
+        if (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded)
             throw new Application.Exceptions.ValidationException("This payment has already been processed");
 
         var isValid = _paymentGateway.VerifyPaymentSignature(
@@ -121,21 +173,13 @@ public class PaymentService : IPaymentService
             request.Signature);
 
         if (!isValid)
-        {
-            payment.Status = PaymentStatus.Failed;
-            payment.FailedAt = DateTime.UtcNow;
-            await _paymentRepository.UpdateAsync(payment);
             throw new Application.Exceptions.ValidationException("Payment signature verification failed");
-        }
 
         var gatewayPayment = await _paymentGateway.GetPaymentDetailsAsync(request.PaymentId);
         if (gatewayPayment.OrderId != payment.OrderId ||
             gatewayPayment.Amount != decimal.ToInt32(payment.Amount * 100m) ||
             !string.Equals(gatewayPayment.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
         {
-            payment.Status = PaymentStatus.Failed;
-            payment.FailedAt = DateTime.UtcNow;
-            await _paymentRepository.UpdateAsync(payment);
             throw new Application.Exceptions.ValidationException("Payment details do not match the order");
         }
 
@@ -239,9 +283,17 @@ public class PaymentService : IPaymentService
             if (string.IsNullOrWhiteSpace(orderId))
                 throw new Application.Exceptions.ValidationException("Webhook payment has no order ID");
 
+            var campaignId = await _db.Payments.Where(p => p.OrderId == orderId)
+                .Select(p => p.AdvertisementId).SingleOrDefaultAsync();
+            if (!campaignId.HasValue)
+                throw new NotFoundException("Payment order not found");
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            await LockCampaign(campaignId.Value);
             var payment = await _paymentRepository.FirstOrDefaultAsync(p => p.OrderId == orderId);
             if (payment == null)
                 throw new NotFoundException("Payment order not found");
+            if (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded)
+                return MapToPaymentDto(payment);
 
             var amount = entity.GetProperty("amount").GetInt32();
             var currency = entity.GetProperty("currency").GetString();
@@ -273,6 +325,7 @@ public class PaymentService : IPaymentService
             }
 
             await _paymentRepository.UpdateAsync(payment);
+            await transaction.CommitAsync();
             _logger.LogInformation(
                 "Razorpay webhook processed: {OrderId}, event {EventName}",
                 payment.OrderId,
@@ -293,7 +346,42 @@ public class PaymentService : IPaymentService
 
         advertisement.PaymentId = payment.Id;
         advertisement.PaidAmount = payment.Amount;
+        if (advertisement.Status == AdvertisementStatus.Draft && advertisement.RegistrationProgress != null)
+            advertisement.Status = AdvertisementStatus.PendingApproval;
+        advertisement.UpdatedAt = DateTime.UtcNow;
         await _advertisementRepository.UpdateAsync(advertisement);
+    }
+
+    private PaymentOrderDto MapOrder(Payment payment) => new()
+    {
+        OrderId = payment.OrderId,
+        KeyId = _paymentGateway.KeyId,
+        Amount = payment.Amount,
+        Currency = payment.Currency,
+        Status = payment.Status.ToString(),
+        CreatedAt = payment.CreatedAt
+    };
+
+    private async Task ReconcileOrder(Payment payment)
+    {
+        if (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded)
+            return;
+        var attempts = await _paymentGateway.GetOrderPaymentsAsync(payment.OrderId);
+        if (attempts.Any(p => p.OrderId != payment.OrderId || p.Amount != decimal.ToInt32(payment.Amount * 100m) || p.Currency != payment.Currency))
+            throw new Application.Exceptions.ValidationException("Gateway payment details do not match the order.");
+        var captured = attempts.FirstOrDefault(p => p.Status == "captured");
+        if (captured != null)
+        {
+            payment.PaymentId = captured.Id;
+            payment.Status = PaymentStatus.Completed;
+            payment.ProcessedAt ??= DateTime.UtcNow;
+            await UpdateAdvertisementPaidAmountAsync(payment);
+        }
+        else
+        {
+            payment.Status = attempts.Any(p => p.Status == "authorized") ? PaymentStatus.Processing : PaymentStatus.Pending;
+        }
+        await _paymentRepository.UpdateAsync(payment);
     }
 
     private static string GetStringOrEmpty(JsonElement element, string propertyName)

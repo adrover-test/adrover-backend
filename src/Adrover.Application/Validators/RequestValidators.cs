@@ -63,10 +63,18 @@ public class CreateAdvertisementRequestValidator : AbstractValidator<CreateAdver
             .MaximumLength(255).WithMessage("Brand cannot exceed 255 characters");
 
         RuleFor(x => x.Description)
-            .NotEmpty().WithMessage("Description is required");
+            .NotEmpty().WithMessage("Description is required")
+            .MaximumLength(2000).WithMessage("Description cannot exceed 2000 characters");
 
         RuleFor(x => x.TargetArea)
-            .NotEmpty().WithMessage("Target area is required");
+            .NotEmpty().WithMessage("Target area is required")
+            .MaximumLength(500).WithMessage("Target area cannot exceed 500 characters");
+
+        RuleFor(x => x.VideoDurationSeconds)
+            .GreaterThan(0).WithMessage("Choose a video with a valid duration");
+
+        RuleFor(x => x.ApprovalAmount)
+            .GreaterThan(0).WithMessage("Enter a positive campaign budget");
 
         RuleFor(x => x.StartDate)
             .NotEmpty().WithMessage("Start date is required");

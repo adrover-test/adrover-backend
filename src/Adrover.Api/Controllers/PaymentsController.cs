@@ -257,7 +257,7 @@ public class PaymentsController : ControllerBase
 
     private Guid GetUserIdFromToken()
     {
-        var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("nameid");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
             throw new AuthenticationException("Invalid or missing user ID in token");
 

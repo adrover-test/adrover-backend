@@ -40,6 +40,7 @@ CREATE TABLE [Advertisements] (
     [Brand] nvarchar(255) NOT NULL,
     [Description] nvarchar(max) NOT NULL,
     [TargetArea] nvarchar(500) NOT NULL,
+    [RegistrationProgress] nvarchar(max) NULL,
     [VideoUrl] nvarchar(500) NULL,
     [ImageUrl] nvarchar(500) NULL,
     [VideoDurationSeconds] decimal(18,2) NOT NULL,

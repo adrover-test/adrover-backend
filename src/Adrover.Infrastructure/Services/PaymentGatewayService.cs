@@ -31,6 +31,7 @@ public interface IPaymentGatewayService
     bool VerifyPaymentSignature(string orderId, string paymentId, string signature);
     bool VerifyWebhookSignature(string payload, string signature);
     Task<RazorpayPaymentDetails> GetPaymentDetailsAsync(string paymentId);
+    Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId);
 }
 
 public class RazorpayPaymentService : IPaymentGatewayService
@@ -133,6 +134,21 @@ public class RazorpayPaymentService : IPaymentGatewayService
             root.TryGetProperty("method", out var method) ? method.GetString() ?? string.Empty : string.Empty,
             cardLastFour,
             cardIssuer);
+    }
+
+    public async Task<IReadOnlyList<RazorpayPaymentDetails>> GetOrderPaymentsAsync(string orderId)
+    {
+        EnsureApiCredentials();
+        using var response = await SendAsync(HttpMethod.Get,
+            $"/orders/{Uri.EscapeDataString(orderId)}/payments", null, _keySecret);
+        using var document = await ReadJsonAsync(response);
+        return document.RootElement.GetProperty("items").EnumerateArray().Select(item => new RazorpayPaymentDetails(
+            item.GetProperty("id").GetString() ?? throw new JsonException("Payment ID missing."),
+            item.GetProperty("order_id").GetString() ?? string.Empty,
+            item.GetProperty("amount").GetInt32(),
+            item.GetProperty("currency").GetString() ?? string.Empty,
+            item.GetProperty("status").GetString() ?? string.Empty,
+            GetStringOrNull(item, "method") ?? string.Empty, null, null)).ToList();
     }
 
     private async Task<HttpResponseMessage> SendAsync(

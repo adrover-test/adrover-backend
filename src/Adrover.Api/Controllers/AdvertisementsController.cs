@@ -39,6 +39,12 @@ public class AdvertisementsController : ControllerBase
         {
             advertisementId = id;
             var advertisement = await _advertisementService.GetAdvertisementAsync(id);
+            if (advertisement.Status == "Draft" &&
+                (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var clientId) || clientId != advertisement.ClientId))
+            {
+                _logger.LogWarning("Unauthorized draft read: {AdvertisementId}", id);
+                return NotFound();
+            }
 
             return Ok(new ApiResponse<AdvertisementDto>
             {
@@ -148,12 +154,24 @@ public class AdvertisementsController : ControllerBase
     /// Create a new advertisement
     /// </summary>
     [HttpPost]
-    public async Task<IActionResult> CreateAdvertisement([FromBody] CreateAdvertisementRequest request)
+    public async Task<IActionResult> CreateAdvertisement([FromBody] CreateAdvertisementRequest request,
+        [FromServices] FluentValidation.IValidator<CreateAdvertisementRequest> validator)
     {
         Guid clientId = Guid.Empty;
         try
         {
             clientId = GetUserIdFromToken();
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid)
+            {
+                _logger.LogWarning("Invalid campaign submitted by client {ClientId}", clientId);
+                return BadRequest(new ApiResponse<AdvertisementDto>
+                {
+                    Success = false,
+                    Message = "Please check your campaign details.",
+                    Errors = validation.Errors.Select(error => error.ErrorMessage).ToList()
+                });
+            }
             var advertisement = await _advertisementService.CreateAdvertisementAsync(clientId, request);
 
             return CreatedAtAction(nameof(GetAdvertisement), new { id = advertisement.Id }, new ApiResponse<AdvertisementDto>
@@ -501,6 +519,8 @@ public class AdvertisementsController : ControllerBase
     /// Upload video for advertisement
     /// </summary>
     [HttpPost("{id}/upload-video")]
+    [RequestSizeLimit(105 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 105 * 1024 * 1024)]
     public async Task<IActionResult> UploadVideo(Guid id, IFormFile file)
     {
         Guid clientId = Guid.Empty;
@@ -623,7 +643,7 @@ public class AdvertisementsController : ControllerBase
 
     private Guid GetUserIdFromToken()
     {
-        var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("nameid");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
             throw new AuthenticationException("Invalid or missing user ID in token");
 
