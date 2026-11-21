@@ -51,6 +51,51 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Client dashboard
+
+These routes are relative to the server origin (not `/api/v1`). They require an
+authenticated Client account and return only that account's data.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/Advertisements/my-ads?pageNumber=1&pageSize=100` | Owned campaigns; `items`, `total`, `skip`, `take` |
+| GET | `/api/ClientDashboard/summary` | Real campaign totals and 14-day recorded activity |
+| GET | `/api/ClientDashboard/campaigns/{id}/creative` | Owner-checked private creative previews |
+| GET | `/api/ClientDashboard/campaigns/{id}/playback?date=2026-11-18&pageNumber=1&pageSize=25` | Recorded plays for a UTC date |
+| GET / PUT | `/api/Users/me` | Current profile; update supports the account `name` |
+| GET | `/api/Payments/history?pageNumber=1&pageSize=10` | Account payment records |
+
+Summary data contains `totalAdvertisements`, `activeAdvertisements`,
+`pendingAdvertisements`, `totalPlays`, `activeCabs`, and `dailyPlays` (14
+`{date, plays}` entries, including zero-play days, in UTC). `totalPlays` is the
+sum of stored campaign delivery counters. `activeCabs` counts distinct vehicle
+numbers with recorded play events during the last 14 days; it is not the sum of
+requested campaign cab allocations.
+
+Creative data is `{videoUrl, imageUrl}`. Missing assets are `null`; present assets
+receive read-only URLs valid for 15 minutes. Another client's campaign returns
+404. No storage credentials are sent to the browser. Refresh the preview to renew
+expired URLs.
+
+Playback data contains `items` and `total`. Each item exposes `id`,
+`vehicleNumber`, `latitude`, `longitude`, `durationSeconds`, and `playedAt`.
+Driver phone numbers are not returned. Page sizes must be 1-100; invalid page
+ranges and future dates return 422. No recorded events means an empty list,
+not generated vehicle locations.
+
+Create Ad uses `POST /api/Advertisements`, followed by the existing authenticated
+`/{id}/upload-video` and optional `/{id}/upload-image` routes. Invalid campaign
+fields return 400 before any campaign is saved. Upload retries reuse the existing
+campaign; creation and uploading do not collect payment. The client can finish
+missing uploads from the saved campaign details. Profile edits persist supported
+fields only; payment exports contain actual records and are not tax invoices.
+
+The local integration host verifies creation/listing, owner isolation, exact
+recorded totals, history pagination and private preview expiration using LocalDB
+and fake storage/payment services. Restart a running API debug session after
+adding the new controller; no production deployment or schema change is performed
+by these tests.
+
 ## Authentication Endpoints
 
 ### 1. Register User
@@ -227,6 +272,26 @@ Both endpoints require the existing `Users`, `RefreshTokens`, and `Wallets` tabl
 
 ## Advertisement Endpoints
 
+### Resumable registration
+
+Apply `database\migrations\20261118-registration-drafts.sql` to existing databases
+before running this backend. The migration is additive and can be run again safely.
+
+- `POST /api/v1/auth/register` accepts an optional `advertisement` object for Client
+  registration. The Client account and private draft are saved together. The object
+  contains a client-generated UUID `id`, `name`, `brand`, `targetArea`, and
+  `videoDurationSeconds`, with optional `days`, `dailyPlays`, `cabs`, `startDate`
+  (`yyyy-MM-dd`), `step` (`plan`, `review`, or `payment`), and `consent`.
+- After sign-in, `GET /api/Advertisements/drafts` lists the client's registrations;
+  `GET /api/Advertisements/drafts/{id}` returns a single registration with saved
+  progress, asset flags, and payment state. `PUT` on the same URL saves draft progress.
+- Upload each file to `POST /api/Advertisements/{id}/upload-video` or `upload-image`.
+  Retry only missing assets. Plan and asset changes lock when checkout starts.
+- `POST /api/Payments/create-order` creates or reconciles the order for the campaign.
+  Only a `Pending` order should open checkout. Submit Razorpay's order ID, payment ID
+  and signature to `POST /api/Payments/verify`. A verified capture moves the draft to
+  `PendingApproval`; a processing order must not open another checkout.
+
 ### 1. List Advertisements
 **GET** `/advertisements`
 
@@ -375,7 +440,7 @@ Payment routes below include the `/api` prefix. All except the signed webhook re
 }
 ```
 
-`amount` is in rupees and must match the advertisement's approved amount. The backend creates and persists the Razorpay order before returning checkout details.
+`amount` is in rupees and must match the advertisement's approved amount for a new order or the stored order amount when retrying. The backend reuses the saved order instead of creating duplicates. If the latest attempt failed and no authorization or capture exists, create-order returns `Pending` so checkout can reopen on the same order; the status endpoint still reports the failed attempt until it is superseded.
 
 **Response (200 OK):**
 ```json
@@ -674,26 +739,36 @@ Configure this HTTPS URL in the Razorpay dashboard and set the matching `Razorpa
 
 ## File Upload Endpoints
 
-### 1. Upload Advertisement Video
-**POST** `/files/upload-video`
+### 1. Attach a Video to an Advertisement
 
-**Request (multipart/form-data):**
-- `file` (required, MP4/WebM, max 100MB)
-- `advertisementId` (required)
+**POST** `/api/Advertisements/{id}/upload-video`
 
-**Response (201 Created):**
+**Authorization:** Bearer token for the client that owns the advertisement.
+
+**Request:** `multipart/form-data` with a `file` field containing a non-empty
+MP4, WebM, or MOV file up to 100 MiB. Create the advertisement first using
+`POST /api/Advertisements` and use its returned ID. The backend uploads the file
+to the `advertisements` blob container and updates the advertisement's
+`VideoUrl`. Campaign creation and video upload are separate requests; if the
+upload fails, retry it with the same advertisement ID rather than creating a
+second campaign.
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
   "data": {
-    "url": "https://blob.azure.com/videos/xxx.mp4",
+    "url": "https://example.blob.core.windows.net/advertisements/ads/example/video.mp4",
     "fileSize": 52428800,
-    "duration": 30,
     "uploadedAt": "2026-11-12T10:35:00Z"
   },
   "message": "Video uploaded successfully"
 }
 ```
+
+The returned URL is not a SAS URL. Private blobs require authorized access or a
+short-lived SAS URL. Azure App Service must have `AzureBlob__ConnectionString`
+configured; do not put storage credentials in the frontend.
 
 ---
 

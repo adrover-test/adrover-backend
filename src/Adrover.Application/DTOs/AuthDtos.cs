@@ -7,6 +7,7 @@ public class RegisterRequest
     public string Password { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = "Client";
+    public Adrover.Application.DTOs.Advertisement.RegistrationDraftRequest? Advertisement { get; set; }
 }
 
 public class LoginRequest

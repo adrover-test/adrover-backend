@@ -39,7 +39,7 @@ public class PaymentDto
 public class PaymentOrderDto
 {
     public Guid Id { get; set; }
-    public string OrderId {     get; set; } = string.Empty;
+    public string OrderId { get; set; } = string.Empty;
     public string KeyId { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public int AmountInPaise { get; set; }
