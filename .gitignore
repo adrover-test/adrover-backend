@@ -88,3 +88,4 @@ coverage/
 # Misc
 node_modules/
 dist/
+/src/Adrover.Api/logs/adrover-20261117.txt
