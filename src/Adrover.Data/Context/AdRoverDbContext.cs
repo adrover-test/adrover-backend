@@ -112,6 +112,7 @@ public class AdRoverDbContext : DbContext
             entity.HasIndex(e => e.PlayedAt);
             entity.Property(e => e.DriverPhone).HasMaxLength(20).IsRequired();
             entity.Property(e => e.VehicleNumber).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.TotalPlays).HasDefaultValue(1);
         });
 
         // Payment configuration

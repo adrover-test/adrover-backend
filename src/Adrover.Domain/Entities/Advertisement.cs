@@ -69,8 +69,9 @@ public class AdPlay
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public int DurationSeconds { get; set; }
+    public int TotalPlays { get; set; } = 1;
     public DateTime PlayedAt { get; set; }
-    
+
     // Navigation properties
     public virtual Advertisement? Advertisement { get; set; }
 }

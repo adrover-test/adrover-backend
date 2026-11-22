@@ -352,6 +352,139 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get operations overview charts with selectable range (daily, weekly, monthly, yearly)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("dashboard/operations-overview")]
+    public async Task<IActionResult> GetOperationsOverview([FromQuery] string? range, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var rangeKey = string.IsNullOrWhiteSpace(range) ? "monthly" : range.Trim().ToLowerInvariant();
+            if (rangeKey is not ("daily" or "weekly" or "monthly" or "yearly"))
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "INVALID_RANGE",
+                        Message = "Use range=daily, weekly, monthly, or yearly."
+                    }
+                });
+            }
+
+            var now = DateTime.UtcNow;
+            var (rangeStartUtc, rangeEndUtc, bucketCount) = ResolveRangeWindow(now, rangeKey);
+
+            var adPlayRows = await _dbContext.AdPlays.AsNoTracking()
+                .Where(adPlay => adPlay.PlayedAt >= rangeStartUtc && adPlay.PlayedAt < rangeEndUtc)
+                .Select(adPlay => new { adPlay.PlayedAt, adPlay.TotalPlays })
+                .ToListAsync(cancellationToken);
+
+            var paymentRows = await _dbContext.Payments.AsNoTracking()
+                .Where(payment => payment.CreatedAt >= rangeStartUtc
+                    && payment.CreatedAt < rangeEndUtc
+                    && (payment.Status == PaymentStatus.Completed || payment.Status == PaymentStatus.Refunded))
+                .Select(payment => new
+                {
+                    payment.CreatedAt,
+                    payment.Status,
+                    payment.Amount
+                })
+                .ToListAsync(cancellationToken);
+
+            var statusGroupedRaw = await _dbContext.Advertisements.AsNoTracking()
+                .GroupBy(advertisement => advertisement.Status)
+                .Select(group => new
+                {
+                    Status = group.Key,
+                    Count = group.Count()
+                })
+                .ToListAsync(cancellationToken);
+
+            var statusGrouped = statusGroupedRaw
+                .Select(item => new AdminAdvertisementStatusPointDto
+                {
+                    Status = item.Status switch
+                    {
+                        AdvertisementStatus.PendingApproval => "Pending approval",
+                        AdvertisementStatus.Active => "Active",
+                        AdvertisementStatus.Approved => "Approved",
+                        AdvertisementStatus.Completed => "Completed",
+                        AdvertisementStatus.Rejected => "Rejected",
+                        AdvertisementStatus.Cancelled => "Cancelled",
+                        AdvertisementStatus.Draft => "Draft",
+                        _ => item.Status.ToString()
+                    },
+                    Count = item.Count
+                })
+                .OrderByDescending(item => item.Count)
+                .ToList();
+
+            var adPlayLookup = adPlayRows
+                .GroupBy(item => GetBucketStart(item.PlayedAt, rangeKey))
+                .ToDictionary(group => group.Key, group => group.Sum(item => (long)item.TotalPlays));
+
+            var revenueLookup = paymentRows
+                .GroupBy(item => GetBucketStart(item.CreatedAt, rangeKey))
+                .ToDictionary(group => group.Key, group => group.Sum(item => item.Status == PaymentStatus.Refunded ? -item.Amount : item.Amount));
+
+            var buckets = Enumerable.Range(0, bucketCount)
+                .Select(index => AddBucket(rangeStartUtc, index, rangeKey))
+                .ToList();
+
+            var monthlyAdPlays = buckets
+                .Select(bucket => new AdminMonthlyAdPlaysPointDto
+                {
+                    Month = FormatBucketLabel(bucket, rangeKey),
+                    TotalPlays = adPlayLookup.GetValueOrDefault(bucket, 0L)
+                })
+                .ToList();
+
+            var monthlyRevenue = buckets
+                .Select(bucket => new AdminMonthlyRevenuePointDto
+                {
+                    Month = FormatBucketLabel(bucket, rangeKey),
+                    NetRevenue = revenueLookup.GetValueOrDefault(bucket, 0m)
+                })
+                .ToList();
+
+            var overview = new AdminOperationsOverviewDto
+            {
+                Currency = "INR",
+                Range = rangeKey,
+                StartUtc = rangeStartUtc,
+                EndUtc = rangeEndUtc,
+                TotalAdPlaysInPeriod = monthlyAdPlays.Sum(item => item.TotalPlays),
+                NetRevenueInPeriod = monthlyRevenue.Sum(item => item.NetRevenue),
+                TotalAds = await _dbContext.Advertisements.AsNoTracking().CountAsync(cancellationToken),
+                MonthlyAdPlays = monthlyAdPlays,
+                MonthlyCampaignRevenue = monthlyRevenue,
+                AdvertisementsByStatus = statusGrouped
+            };
+
+            return Ok(new ApiResponse<AdminOperationsOverviewDto>
+            {
+                Success = true,
+                Data = overview,
+                Message = "Operations overview retrieved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving operations overview");
+            return StatusCode(500, new ApiErrorResponse
+            {
+                Error = new ErrorDetails
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "Error retrieving operations overview"
+                }
+            });
+        }
+    }
+
+    /// <summary>
     /// Get admin dashboard summary cards
     /// </summary>
     [AllowAnonymous]
@@ -379,7 +512,9 @@ public class AdminController : ControllerBase
                 AdsAwaitingApproval = await _dbContext.Advertisements.AsNoTracking()
                     .CountAsync(advertisement => advertisement.Status == AdvertisementStatus.PendingApproval, cancellationToken),
                 TotalAds = await _dbContext.Advertisements.AsNoTracking().CountAsync(cancellationToken),
-                TotalAdPlays = await _dbContext.AdPlays.AsNoTracking().LongCountAsync(cancellationToken),
+                TotalAdPlays = await _dbContext.AdPlays.AsNoTracking()
+                    .Select(adPlay => (long?)adPlay.TotalPlays)
+                    .SumAsync(cancellationToken) ?? 0L,
                 TotalRevenueTillDate = totalCollected - totalRefunded
             };
 
@@ -409,6 +544,7 @@ public class AdminController : ControllerBase
     /// <summary>
     /// Get clients list for admin clients page
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("clients")]
     public async Task<IActionResult> GetClients(
         [FromQuery] string? search,
@@ -631,6 +767,59 @@ public class AdminController : ControllerBase
                 }
             });
         }
+    }
+
+    private static (DateTime RangeStartUtc, DateTime RangeEndUtc, int BucketCount) ResolveRangeWindow(DateTime nowUtc, string range)
+    {
+        return range switch
+        {
+            "daily" => (nowUtc.Date.AddDays(-13), nowUtc.Date.AddDays(1), 14),
+            "weekly" => (StartOfWeek(nowUtc.Date).AddDays(-77), StartOfWeek(nowUtc.Date).AddDays(7), 12),
+            "yearly" => (new DateTime(nowUtc.Year - 4, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                new DateTime(nowUtc.Year + 1, 1, 1, 0, 0, 0, DateTimeKind.Utc), 5),
+            _ => (new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-11),
+                new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1), 12)
+        };
+    }
+
+    private static DateTime StartOfWeek(DateTime value)
+    {
+        var offset = (7 + (int)value.DayOfWeek - (int)DayOfWeek.Monday) % 7;
+        return value.AddDays(-offset);
+    }
+
+    private static DateTime GetBucketStart(DateTime value, string range)
+    {
+        var utc = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        return range switch
+        {
+            "daily" => utc.Date,
+            "weekly" => StartOfWeek(utc.Date),
+            "yearly" => new DateTime(utc.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            _ => new DateTime(utc.Year, utc.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+    }
+
+    private static DateTime AddBucket(DateTime start, int offset, string range)
+    {
+        return range switch
+        {
+            "daily" => start.AddDays(offset),
+            "weekly" => start.AddDays(offset * 7),
+            "yearly" => start.AddYears(offset),
+            _ => start.AddMonths(offset)
+        };
+    }
+
+    private static string FormatBucketLabel(DateTime bucketStart, string range)
+    {
+        return range switch
+        {
+            "daily" => bucketStart.ToString("dd MMM"),
+            "weekly" => $"Week of {bucketStart:dd MMM}",
+            "yearly" => bucketStart.ToString("yyyy"),
+            _ => bucketStart.ToString("MMM yy")
+        };
     }
 
     private static string? ExtractFromMessage(string message, string key)
