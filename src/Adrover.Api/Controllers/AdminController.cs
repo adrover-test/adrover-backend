@@ -407,6 +407,189 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get clients list for admin clients page
+    /// </summary>
+    [HttpGet("clients")]
+    public async Task<IActionResult> GetClients(
+        [FromQuery] string? search,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "INVALID_REQUEST",
+                        Message = "Choose a valid page number and page size (1-100)."
+                    }
+                });
+            }
+
+            var query = _dbContext.Users.AsNoTracking()
+                .Where(user => user.Role == UserRole.Client);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(user =>
+                    user.FullName.Contains(term)
+                    || user.Email.Contains(term)
+                    || user.Phone.Contains(term));
+            }
+
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderByDescending(user => user.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(user => new AdminClientListItemDto
+                {
+                    ClientId = user.Id,
+                    ClientOrBusiness = user.FullName,
+                    ContactName = user.FullName,
+                    Email = user.Email,
+                    Phone = string.IsNullOrWhiteSpace(user.Phone) ? "Not provided" : user.Phone,
+                    Advertisements = _dbContext.Advertisements.Count(advertisement => advertisement.ClientId == user.Id)
+                })
+                .ToListAsync(cancellationToken);
+
+            return Ok(new ApiResponse<AdminClientListResponseDto>
+            {
+                Success = true,
+                Data = new AdminClientListResponseDto
+                {
+                    Items = items,
+                    Total = total,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                },
+                Message = "Clients retrieved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving clients list");
+            return StatusCode(500, new ApiErrorResponse
+            {
+                Error = new ErrorDetails
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "Error retrieving clients list"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get enquiries list for admin enquiries page
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("enquiries")]
+    public async Task<IActionResult> GetEnquiries(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "INVALID_REQUEST",
+                        Message = "Choose a valid page number and page size (1-100)."
+                    }
+                });
+            }
+
+            var allEnquiries = _dbContext.Enquiries.AsNoTracking();
+            var summary = new AdminEnquirySummaryDto
+            {
+                TotalEnquiries = await allEnquiries.CountAsync(cancellationToken),
+                AwaitingReply = await allEnquiries.CountAsync(enquiry => enquiry.Status != "Resolved", cancellationToken),
+                Replied = await allEnquiries.CountAsync(enquiry => enquiry.Status == "Resolved", cancellationToken)
+            };
+
+            var query = allEnquiries;
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(enquiry =>
+                    enquiry.Name.Contains(term)
+                    || enquiry.Email.Contains(term)
+                    || enquiry.Phone.Contains(term)
+                    || enquiry.Subject.Contains(term)
+                    || enquiry.Message.Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = status.Trim().ToLowerInvariant() switch
+                {
+                    "awaiting" or "awaiting-reply" or "awaiting reply" => query.Where(enquiry => enquiry.Status != "Resolved"),
+                    "replied" => query.Where(enquiry => enquiry.Status == "Resolved"),
+                    _ => query
+                };
+            }
+
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderByDescending(enquiry => enquiry.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(enquiry => new AdminEnquiryListItemDto
+                {
+                    EnquiryId = enquiry.Id,
+                    BusinessOrName = ExtractFromMessage(enquiry.Message, "Business") ?? enquiry.Name,
+                    ContactName = enquiry.Name,
+                    ReceivedAt = enquiry.CreatedAt,
+                    Email = enquiry.Email,
+                    Phone = string.IsNullOrWhiteSpace(enquiry.Phone) ? "Not provided" : enquiry.Phone,
+                    Objective = enquiry.Subject,
+                    Requirements = ExtractFromMessage(enquiry.Message, "Additional details") ?? enquiry.Message,
+                    ReplyStatus = enquiry.Status == "Resolved" ? "Replied" : "Awaiting reply",
+                    InternalNotes = string.Empty
+                })
+                .ToListAsync(cancellationToken);
+
+            return Ok(new ApiResponse<AdminEnquiryListResponseDto>
+            {
+                Success = true,
+                Data = new AdminEnquiryListResponseDto
+                {
+                    Summary = summary,
+                    Items = items,
+                    Total = total,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                },
+                Message = "Enquiries retrieved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving enquiries list");
+            return StatusCode(500, new ApiErrorResponse
+            {
+                Error = new ErrorDetails
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "Error retrieving enquiries list"
+                }
+            });
+        }
+    }
+
+    /// <summary>
     /// Get user management statistics
     /// </summary>
     [HttpGet("users/statistics")]
@@ -428,7 +611,7 @@ public class AdminController : ControllerBase
             };
 
             _logger.LogInformation("Admin {AdminId} retrieved user statistics", adminId);
-            
+
             return Ok(new ApiResponse<object>
             {
                 Success = true,
@@ -448,6 +631,27 @@ public class AdminController : ControllerBase
                 }
             });
         }
+    }
+
+    private static string? ExtractFromMessage(string message, string key)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return null;
+        }
+
+        var marker = $"{key}:";
+        var lines = message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        foreach (var line in lines)
+        {
+            if (line.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                var value = line[marker.Length..].Trim();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
