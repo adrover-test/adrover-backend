@@ -62,6 +62,7 @@ public static class ServiceConfiguration
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<Adrover.Backend.Services.OtpService>();
         services.AddScoped<Adrover.Backend.Services.InquiryService>();
+        services.AddScoped<Adrover.Backend.Services.IntelisaAuthService>();
 
         // Infrastructure Services
         services.AddSingleton<IPasswordService, PasswordService>();

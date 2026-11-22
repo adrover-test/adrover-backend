@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MimeKit;
+using MailKit.Security;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mail;
@@ -41,7 +43,7 @@ public sealed class InquiryService(
             {
                 var error = channel switch
                 {
-                    "email" => await SendEmailAsync(http, inquiry, inquiryId, cancellationToken),
+                    "email" => await SendEmailAsync(inquiry, inquiryId, cancellationToken),
                     "whatsapp" => await SendWhatsAppAsync(http, inquiry, cancellationToken),
                     _ => await SendSmsAsync(http, inquiry, cancellationToken)
                 };
@@ -65,40 +67,25 @@ public sealed class InquiryService(
     }
 
     private async Task<string?> SendEmailAsync(
-        HttpClient http, IReadOnlyDictionary<string, string> inquiry, string id, CancellationToken token)
+        IReadOnlyDictionary<string, string> inquiry, string id, CancellationToken token)
     {
-        var tenant = configuration["Outlook:TenantId"];
-        var client = configuration["Outlook:ClientId"];
-        var secret = configuration["Outlook:ClientSecret"];
-        var sender = configuration["Outlook:SenderEmail"];
-        var admin = configuration["Outlook:AdminEmail"];
-        if (new[] { tenant, client, secret }.Any(string.IsNullOrWhiteSpace)
+        var smtpHost = configuration["Smtp:Host"];
+        var smtpPortValue = configuration["Smtp:Port"];
+        var smtpUsername = configuration["Smtp:Username"];
+        var smtpPassword = configuration["Smtp:Password"];
+        var sender = configuration["Smtp:FromEmail"];
+        var senderName = configuration["Smtp:FromName"];
+        var admin = configuration["Smtp:AdminEmail"];
+
+        if (string.IsNullOrWhiteSpace(smtpHost)
+            || !int.TryParse(smtpPortValue, out var smtpPort)
+            || smtpPort <= 0
+            || string.IsNullOrWhiteSpace(smtpUsername)
+            || string.IsNullOrWhiteSpace(smtpPassword)
             || !MailAddress.TryCreate(sender, out _)
             || !MailAddress.TryCreate(admin, out var recipient))
         {
-            return "Outlook credentials or admin/sender email are not configured correctly.";
-        }
-
-        using var tokenResponse = await http.PostAsync(
-            $"https://login.microsoftonline.com/{Uri.EscapeDataString(tenant!)}/oauth2/v2.0/token",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["client_id"] = client!,
-                ["client_secret"] = secret!,
-                ["scope"] = "https://graph.microsoft.com/.default",
-                ["grant_type"] = "client_credentials"
-            }), token);
-        if (!tokenResponse.IsSuccessStatusCode)
-        {
-            return Failure("Outlook authentication", tokenResponse);
-        }
-        using var auth = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync(token));
-        if (auth.RootElement.ValueKind != JsonValueKind.Object
-            || !auth.RootElement.TryGetProperty("access_token", out var accessToken)
-            || accessToken.ValueKind != JsonValueKind.String
-            || string.IsNullOrWhiteSpace(accessToken.GetString()))
-        {
-            return "Outlook returned no access token.";
+            return "SMTP credentials or admin/sender email are not configured correctly.";
         }
 
         var body = string.Join("\n", new[]
@@ -112,24 +99,32 @@ public sealed class InquiryService(
             $"Preferred screen format: {inquiry["format"]}",
             $"Anything we should know?: {Display(inquiry["message"])}"
         });
-        using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"https://graph.microsoft.com/v1.0/users/{Uri.EscapeDataString(sender!)}/sendMail")
+
+        try
         {
-            Content = JsonContent.Create(new
-            {
-                message = new
-                {
-                    subject = $"Adrover inquiry - {inquiry["business"]}",
-                    body = new { contentType = "Text", content = body },
-                    toRecipients = new[] { new { emailAddress = new { address = recipient.Address } } },
-                    replyTo = new[] { new { emailAddress = new { address = inquiry["email"] } } }
-                },
-                saveToSentItems = true
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.GetString());
-        using var response = await http.SendAsync(request, token);
-        return response.IsSuccessStatusCode ? null : Failure("Outlook", response);
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(senderName ?? "Adrover", sender));
+            message.To.Add(MailboxAddress.Parse(recipient.Address));
+            message.Subject = $"Adrover inquiry - {inquiry["business"]}";
+            message.ReplyTo.Add(MailboxAddress.Parse(inquiry["email"]));
+            message.Body = new TextPart("plain") { Text = body };
+
+            using var smtp = new MailKit.Net.Smtp.SmtpClient();
+            await smtp.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls, token);
+            await smtp.AuthenticateAsync(smtpUsername, smtpPassword, token);
+            await smtp.SendAsync(message, token);
+            await smtp.DisconnectAsync(true, token);
+
+            return null;
+        }
+        catch (Exception ex)
+            when (ex is MailKit.Net.Smtp.SmtpCommandException
+                or MailKit.Net.Smtp.SmtpProtocolException
+                or System.Net.Sockets.SocketException
+                or IOException)
+        {
+            return "SMTP rejected the request or failed to connect.";
+        }
     }
 
     private async Task<string?> SendWhatsAppAsync(

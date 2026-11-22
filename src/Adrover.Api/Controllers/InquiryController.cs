@@ -114,10 +114,26 @@ public sealed class InquiryController(
         var results = await service.SendAsync(inquiry, inquiryId, cancellationToken);
         var accepted = results.Count(result => result.Accepted);
         var simulated = results.All(result => result.Simulated);
-        return StatusCode(simulated || accepted == 3 ? 200 : accepted == 0 ? 502 : 207, new
+        var emailResult = results.FirstOrDefault(result => result.Channel == "email");
+        var emailDelivered = emailResult.Accepted || emailResult.Simulated;
+        var httpStatus = simulated || accepted == 3 || emailDelivered
+            ? 200
+            : accepted == 0
+                ? 502
+                : 207;
+
+        return StatusCode(httpStatus, new
         {
             inquiryId,
-            status = simulated ? "simulated" : accepted == 3 ? "accepted" : accepted == 0 ? "failed" : "partial",
+            status = simulated
+                ? "simulated"
+                : emailDelivered
+                    ? "accepted"
+                    : accepted == 3
+                        ? "accepted"
+                        : accepted == 0
+                            ? "failed"
+                            : "partial",
             results = results.Select(result => new
             {
                 channel = result.Channel,

@@ -2,9 +2,11 @@ using Adrover.Application.DTOs;
 using Adrover.Application.DTOs.Advertisement;
 using Adrover.Application.Services;
 using Adrover.Application.Exceptions;
+using Adrover.Data.Context;
 using Adrover.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Adrover.Api.Controllers;
@@ -20,17 +22,20 @@ public class AdminController : ControllerBase
     private readonly IAdvertisementService _advertisementService;
     private readonly IPaymentService _paymentService;
     private readonly IUserService _userService;
+    private readonly AdRoverDbContext _dbContext;
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         IAdvertisementService advertisementService,
         IPaymentService paymentService,
         IUserService userService,
+        AdRoverDbContext dbContext,
         ILogger<AdminController> logger)
     {
         _advertisementService = advertisementService;
         _paymentService = paymentService;
         _userService = userService;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -341,6 +346,62 @@ public class AdminController : ControllerBase
                 {
                     Code = "INTERNAL_ERROR",
                     Message = "Error retrieving advertisement analytics"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get admin dashboard summary cards
+    /// </summary>
+    [HttpGet("dashboard/summary")]
+    public async Task<IActionResult> GetDashboardSummary(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var adminId = GetUserIdFromToken();
+
+            var totalCollected = await _dbContext.Payments.AsNoTracking()
+                .Where(payment => payment.Status == PaymentStatus.Completed)
+                .Select(payment => (decimal?)payment.Amount)
+                .SumAsync(cancellationToken) ?? 0m;
+            var totalRefunded = await _dbContext.Payments.AsNoTracking()
+                .Where(payment => payment.Status == PaymentStatus.Refunded)
+                .Select(payment => (decimal?)payment.Amount)
+                .SumAsync(cancellationToken) ?? 0m;
+
+            var summary = new AdminDashboardSummaryDto
+            {
+                ClientsPresent = await _dbContext.Users.AsNoTracking()
+                    .CountAsync(user => user.Role == UserRole.Client && user.IsActive, cancellationToken),
+                Enquiries = await _dbContext.Enquiries.AsNoTracking().CountAsync(cancellationToken),
+                CabsInDirectory = await _dbContext.Users.AsNoTracking()
+                    .CountAsync(user => user.Role == UserRole.Driver && user.IsActive, cancellationToken),
+                AdsAwaitingApproval = await _dbContext.Advertisements.AsNoTracking()
+                    .CountAsync(advertisement => advertisement.Status == AdvertisementStatus.PendingApproval, cancellationToken),
+                TotalAds = await _dbContext.Advertisements.AsNoTracking().CountAsync(cancellationToken),
+                TotalAdPlays = await _dbContext.AdPlays.AsNoTracking().LongCountAsync(cancellationToken),
+                TotalRevenueTillDate = totalCollected - totalRefunded
+            };
+
+            _logger.LogInformation("Admin {AdminId} retrieved dashboard summary", adminId);
+
+            return Ok(new ApiResponse<AdminDashboardSummaryDto>
+            {
+                Success = true,
+                Data = summary,
+                Message = "Dashboard summary retrieved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving dashboard summary");
+            return StatusCode(500, new ApiErrorResponse
+            {
+                Error = new ErrorDetails
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "Error retrieving dashboard summary"
                 }
             });
         }
