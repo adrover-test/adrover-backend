@@ -354,13 +354,12 @@ public class AdminController : ControllerBase
     /// <summary>
     /// Get admin dashboard summary cards
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("dashboard/summary")]
     public async Task<IActionResult> GetDashboardSummary(CancellationToken cancellationToken)
     {
         try
         {
-            var adminId = GetUserIdFromToken();
-
             var totalCollected = await _dbContext.Payments.AsNoTracking()
                 .Where(payment => payment.Status == PaymentStatus.Completed)
                 .Select(payment => (decimal?)payment.Amount)
@@ -373,7 +372,7 @@ public class AdminController : ControllerBase
             var summary = new AdminDashboardSummaryDto
             {
                 ClientsPresent = await _dbContext.Users.AsNoTracking()
-                    .CountAsync(user => user.Role == UserRole.Client && user.IsActive, cancellationToken),
+                    .CountAsync(user => user.Role == UserRole.Client, cancellationToken),
                 Enquiries = await _dbContext.Enquiries.AsNoTracking().CountAsync(cancellationToken),
                 CabsInDirectory = await _dbContext.Users.AsNoTracking()
                     .CountAsync(user => user.Role == UserRole.Driver && user.IsActive, cancellationToken),
@@ -384,7 +383,7 @@ public class AdminController : ControllerBase
                 TotalRevenueTillDate = totalCollected - totalRefunded
             };
 
-            _logger.LogInformation("Admin {AdminId} retrieved dashboard summary", adminId);
+            _logger.LogInformation("Dashboard summary retrieved");
 
             return Ok(new ApiResponse<AdminDashboardSummaryDto>
             {

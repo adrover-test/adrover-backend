@@ -54,7 +54,10 @@ public static class ServiceConfiguration
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("SuperAdminOnly", policy => policy.RequireRole("SuperAdmin"));
+        });
 
         // OTP (MSG91)
         services.AddMemoryCache();
