@@ -25,6 +25,11 @@ public class ValidationException : ApplicationException
     public ValidationException(string message) : base(message) { }
 }
 
+public sealed class CampaignStartedException : ValidationException
+{
+    public CampaignStartedException() : base("This advertisement has started playing and can no longer be edited.") { }
+}
+
 /// <summary>
 /// Exception thrown when authentication fails
 /// </summary>

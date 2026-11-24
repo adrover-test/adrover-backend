@@ -45,6 +45,14 @@ public class AdvertisementDto
     public long ActualPlays { get; set; }
     public int AssignedCabs { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? ContentId { get; set; }
+    public string ContentState { get; set; } = "NotSubmitted";
+    public bool ReadyForScheduling { get; set; }
+    public DateTime? FirstPlayedAt { get; set; }
+    public DateOnly? FirstPlaybackDate { get; set; }
+    public DateOnly? LastReportedDay { get; set; }
+    public bool IsEditable { get; set; }
+    public string? SetupValidationMessage { get; set; }
     public decimal ApprovalAmount { get; set; }
     public decimal PaidAmount { get; set; }
     public string? PaymentStatus { get; set; }

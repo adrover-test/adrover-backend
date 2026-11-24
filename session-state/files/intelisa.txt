@@ -1,0 +1,450 @@
+Intelisa API v1 – Integration Guide
+Nov 17, 2026 
+Overview
+Log in once with a user name and password, then send the returned token on every call.
+Base URL {{url}} – https://login.intelisa.in
+Item Value
+Request type POST for every API
+Content type application/json (upload: multipart/form-data)
+Auth header auth-token: <token from Login> on every API except Login
+Token validity 24 hours. Logging in again (API or portal) with the same user ends the 
+previous token.
+Dates and times IST. Dates YYYY-MM-DD, times HH:MM (24-hour)
+Transport HTTPS only
+Typical flow
+1. Login → store the token.
+2. Get screens → screen IDs.
+3. Upload a creative → creative ID; poll Creative status until it is ready.
+4. Schedule the creative on the screens.
+5. Later, fetch the Creative Detail Report for proof of play.
+Errors (all APIs)
+{ "error": "Bad request", "code": "INVALID_REQUEST", "message": "<what is 
+wrong>" }
+Status code Meaning
+400 Invalid parameters, or an ID the user cannot access
+401 Token missing, expired or ended by a newer login → log in again
+403 User lacks the permission for this API, wrong domain, or subscription expired
+413 Upload larger than allowed
+429 Too many failed login attempts; try again after 15 minutes
+500 Server error
+
+=====PAGE=====
+1. Login
+Request type – POST
+Request URL – {{url}}/api/v1/auth/login
+Request parameters –
+{
+  "userName": "<emailID@domain.com or userName>",
+  "password": "<password>"
+}
+Successful Response – status code 200
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "header": "auth-token",
+  "expiresIn": 86400,
+  "user": {
+    "userID": "61aa085d36cec059cb4c12df",
+    "userName": "acme_api",
+    "firstName": "Acme",
+    "lastName": "Integration",
+    "role": "002"
+  },
+  "licence": {
+    "expiryDate": "31-03-2027",
+    "daysToExpire": 134,
+    "gracePeriod": 7
+  }
+}
+Store the token and send it as the auth-token header on every other API. expiresIn is in seconds.
+Unsuccessful Response – status code 401 (wrong user name or password)
+{ "error": "Unauthorized", "code": "INVALID_CREDENTIALS", "message": "Invalid 
+user name or password" }
+Other unsuccessful responses – status code 403, with code:
+code Meaning
+ACCOUNT_DELETED / ACCOUNT_BLOCKED / 
+ACCOUNT_REMOVED / ACCOUNT_INACTIVE
+The user cannot sign in
+WRONG_DOMAIN Use your organization's Intelisa domain as {{url}}
+EMAIL_NOT_VERIFIED Verify the email in the portal first
+PASSWORD_RESET_REQUIRED Change the password in the portal first
+OTP_REQUIRED This user needs OTP at login; use an API user 
+without OTP
+SUBSCRIPTION_EXPIRED Licence and grace period are over
+
+=====PAGE=====
+Status code 429 – more than 10 failed attempts in 15 minutes.
+2. Get screens
+Returns every screen the logged-in user can see, with its live status.
+Request type – POST
+Request URL – {{url}}/api/v1/screens
+Headers – auth-token: <token>
+Permission needed – Screen management
+Request parameters – none (send {}). The user is taken from the token.
+Successful Response – status code 200
+[
+  {
+    "screenID": "605892b820e307aa46ec0284",
+    "screenName": "Lobby Screen",
+    "screenType": "Landscape",
+    "spotCode": "Mumbai - Andheri",
+    "zone": "West",
+    "status": "ON",
+    "lastDataRecorded": "2026-11-17 12:24",
+    "coordinates": { "lat": 19.0759837, "lng": 72.8776559 },
+    "address": "Mumbai, Maharashtra, India",
+    "hardwareRotation": "0",
+    "deviceIMEI": "a1b2c3d4e5f6",
+    "tags": ["MASTER", "Andheri"]
+  }
+]
+status is ON when the screen checked in within the last 3 minutes, otherwise OFF. spotCode is the 
+screen's location. Use screenID in Schedule and in the report filters.
+Unsuccessful Response – status code 403
+{ "error": "Forbidden", "code": "ACCESS_DENIED", "message": "You do not have 
+permissions to access this feature. Please contact your administrator." }
+3. List creatives
+Returns the creatives the user can schedule, newest first, with their IDs.
+Request type – POST
+Request URL – {{url}}/api/v1/creatives
+Headers – auth-token: <token>
+Permission needed – My Ads or Scheduler
+Request parameters – all optional
+
+=====PAGE=====
+{
+  "search": "diwali",
+  "group": "Diwali Campaign",
+  "type": "image",
+  "limit": 50,
+  "offset": 0
+}
+Parameter Description
+search Text in the file name, description or ad group
+group Exact ad group name
+type any, image, video, document, audio or other
+limit 1–200, default 50 – number of creatives returned in the result
+offset For the next page, default 0
+0 starts at the newest creative, and 50 skips the first 50
+Successful Response – status code 200
+{
+  "total": 124,
+  "offset": 0,
+  "more": true,
+  "creatives": [
+    {
+      "id": "6735a1f2c9e77b0012ab34cd",
+      "name": "diwali-offer",
+      "file": "1794896576697-diwali-offer.jpg",
+      "group": "Diwali Campaign",
+      "description": "Festive banner",
+      "type": "image",
+      "resolution": "1920x1080",
+      "uploaded": "2026-11-17",
+      "valid_until": "2026-12-31"
+    }
+  ]
+}
+Videos also return duration_seconds. more: true means another page exists; call again with 
+offset + limit.
+4. Upload creative
+Uploads one file to the user's creatives. Intelisa then processes it (thumbnail, duration, document 
+pages); check progress with Creative status.
+Request type – POST
+Request URL – {{url}}/api/v1/creatives/upload
+Headers – auth-token: <token>, Content-Type: multipart/form-data
+
+=====PAGE=====
+Permission needed – My Ads
+Request parameters – form fields
+Field Required Description
+file Yes Exactly one file
+adGroup Yes Ad group / customer name, up to 100 characters
+description No Up to 500 characters
+startDate No YYYY-MM-DD, first day the creative is valid
+endDate No YYYY-MM-DD, last day the creative is valid
+Allowed file types – jpg, jpeg, gif, webp, tif, tiff, png, bmp, pdf, doc, docx, xls, xlsx, ppt, pptx, mp4, 3gp, 
+mov, mkv, mpeg, mpg, flv, avi, vob, wmv, mp3. Maximum 500 MB. The file's content must match its 
+extension.
+Example
+curl -X POST "{{url}}/api/v1/creatives/upload" \
+  -H "auth-token: <token>" \
+  -F "file=@diwali-offer.jpg" \
+  -F "adGroup=Diwali Campaign" \
+  -F "endDate=2026-12-31"
+Successful Response – status code 201
+{
+  "status": "processing",
+  "message": "Uploaded. Intelisa is processing the file (thumbnails, 
+duration); it can be scheduled right away.",
+  "creative": {
+    "id": "6735a1f2c9e77b0012ab34cd",
+    "file": "1794896576697-diwali-offer.jpg",
+    "group": "Diwali Campaign",
+    "type": "image"
+  }
+}
+Store creative.id; it is used in Creative status, Schedule and the report.
+Unsuccessful Response – status code 400
+{ "error": "Bad request", "code": "INVALID_UPLOAD", "message": "The file 
+content does not match its .jpg extension" }
+Status code 413 (FILE_TOO_LARGE) – file over the size limit. Status code 403 
+(CONTENT_APPROVAL_REQUIRED) – this user's uploads need approval; upload in the portal instead.
+5. Creative status
+Tells whether Intelisa has finished processing uploaded creatives. Poll every 15–30 seconds after an 
+upload until the status is ready.
+
+=====PAGE=====
+Request type – POST
+Request URL – {{url}}/api/v1/creatives/status
+Headers – auth-token: <token>
+Permission needed – My Ads or Scheduler
+Request parameters – 1 to 50 creative IDs from Upload creative
+{
+  "creative_ids": ["6735a1f2c9e77b0012ab34cd", "6735a2a7c9e77b0012ab3501"]
+}
+Successful Response – status code 200
+{
+  "creatives": [
+    {
+      "id": "6735a1f2c9e77b0012ab34cd",
+      "file": "1794896576697-diwali-offer.jpg",
+      "group": "Diwali Campaign",
+      "status": "ready",
+      "resolution": "1920x1080",
+      "file_size": 245760
+    },
+    {
+      "id": "6735a2a7c9e77b0012ab3501",
+      "file": "1794896599120-promo.mp4",
+      "group": "Diwali Campaign",
+      "status": "processing"
+    }
+  ]
+}
+status Meaning
+processing Still being processed
+ready Processed. Videos add duration_seconds, documents add pages.
+not_found Unknown ID, or a creative this user cannot access
+file is the current file name; Intelisa may change its extension during processing (for example .png 
+to .jpg).
+Unsuccessful Response – status code 400
+{ "error": "Bad request", "code": "INVALID_REQUEST", "message": "creative_ids 
+must be an array of 1 to 50 creative ids" }
+6. Creative Detail Report
+Proof of play for one creative: plays and play time per screen, per day. Same numbers as the portal's 
+Creative Detail Report.
+Request type – POST
+
+=====PAGE=====
+Request URL – {{url}}/api/v1/reports/creative-detail
+Headers – auth-token: <token>
+Permission needed – Reports v2 and Creative Detail Report
+Request parameters –
+{
+  "creative_id": "6735a1f2c9e77b0012ab34cd",
+  "start_date": "2026-11-01",
+  "end_date": "2026-11-15",
+  "screen_ids": ["605892b820e307aa46ec0284"],
+  "locations": ["Mumbai - Andheri"],
+  "screen_types": ["Landscape"]
+}
+Parameter Required Description
+creative_id Yes From List creatives or Upload creative
+end_date No Last day, default today
+start_date No First day, default 7 days ending end_date; range up to 366 days
+screen_ids No Only these screens (default: all the user's screens)
+locations No Only screens at these locations (spotCode)
+screen_types No Only these screen types
+Successful Response – status code 200
+{
+  "creative": {
+    "creative_id": "6735a1f2c9e77b0012ab34cd",
+    "name": "diwali-offer",
+    "ad_group": "Diwali Campaign",
+    "type": "image",
+    "resolution": "1920x1080",
+    "orientation": "landscape",
+    "uploaded": "2026-10-28",
+    "valid_until": "2026-12-31"
+  },
+  "period": { "start": "2026-11-01", "end": "2026-11-15", "days": 15 },
+  "totals": {
+    "plays": 5420,
+    "minutes": 1806.7,
+    "screens_played": 12,
+    "screens_in_report": 14,
+    "average_frequency_seconds": 180,
+    "missed_screen_days": 31
+  },
+  "per_day": [
+    { "date": "2026-11-01", "plays": 360, "minutes": 120 }
+  ],
+  "dates": ["2026-11-01", "2026-11-02", "..."],
+
+=====PAGE=====
+  "screens": [
+    {
+      "screen_id": "605892b820e307aa46ec0284",
+      "name": "Lobby Screen",
+      "location": "Mumbai - Andheri",
+      "screen_type": "Landscape",
+      "plays": 480,
+      "minutes": 160,
+      "days_played": 15,
+      "days_not_played": 0,
+      "last_played": "2026-11-15",
+      "share_percent": 8.9,
+      "daily_plays": [32, 30, 33]
+    }
+  ],
+  "screens_without_plays": [
+    { "screen_id": "605892b820e307aa46ec0291", "name": "Cafeteria", 
+"location": "Mumbai - Andheri" }
+  ],
+  "data_freshness": {
+    "latest_day_with_play_data": "2026-11-15",
+    "processing": "nightly (a day's plays usually appear about 2 days later)"
+  }
+}
+daily_plays lines up with dates. Check data_freshness.latest_day_with_play_data before 
+treating a recent day's zero plays as "not played": that day's data may not have arrived yet. 
+average_frequency_seconds is the portal's average ad frequency.
+Response fields
+Field Meaning
+creative – the creative the report is about
+creative_id Creative ID
+name Readable name: the file name without the upload timestamp 
+and extension
+ad_group Ad group / customer name
+type image, video, audio or other
+resolution Width x height, for example 1920x1080 (from processing)
+orientation landscape or portrait, from the resolution
+uploaded Upload date
+valid_until End date set on the creative, if any
+period – the date range of the report
+start / end First and last day (inclusive)
+
+=====PAGE=====
+Field Meaning
+days Number of days in the range
+filters – echo of the filters sent
+screens all, or the number of screens matched from screen_ids
+locations / screen_types The location and screen type filters, if sent
+totals – headline numbers for the whole range
+plays Total times the creative played, all screens
+minutes Total time on screen, in minutes (1 decimal)
+screens_played Screens that played it at least once
+screens_in_report All screens covered after filters, played or not (screens + 
+screens_without_plays)
+average_frequency_seconds The portal's average ad frequency: all play time on the screens 
+that played it, divided by this creative's plays. Roughly, it came 
+up once every that many seconds of playback.
+missed_screen_days Sum of days_not_played across the screens in screens
+per_day – one row per date in the range, all screens together
+date The day
+plays / minutes Plays and minutes on that day; 0 if none
+dates – every date in the range, in order; the index for daily_plays
+screens – one row per screen that played the creative, most plays first
+screen_id / name The screen
+location The screen's location (spot code)
+screen_type The screen type
+plays / minutes This screen's totals
+days_played Days in the range with at least one play
+days_not_played Days in the range with no play, including days it was not 
+scheduled on this screen
+last_played Last date with a play
+share_percent This screen's share of all plays, in %
+
+=====PAGE=====
+Field Meaning
+daily_plays Plays per day, in the same order as dates: daily_plays[0] is 
+for dates[0]
+screens_without_plays – screens in the report that played it zero times (screen_id, name, location)
+data_freshness – how far play data has arrived; read before trusting recent zeros
+latest_day_with_play_data Newest date with play data for these screens. Days after it show 
+zero because data has not arrived yet, not because nothing 
+played.
+processing nightly (a day's plays usually appear about 2 days later) or 
+fast (about every 10 minutes while screens are online)
+screens_not_found – only present if some screen_ids sent do not exist or are not accessible
+notes – plain-language notes on the numbers
+Plays of the creative's rotated copies (_rotated files) are counted as the same creative. An account 
+owner (role 001) sees all screens in the account, including team members' screens, so totals can be 
+higher than on a single-account portal report.
+Unsuccessful Response – status code 400
+{ "error": "Bad request", "code": "INVALID_REQUEST", "message": "Creative not 
+found, or you don't have access to it." }
+7. Schedule content
+Puts creatives on screens for a date range, all day or in a time window. Accounts with minute scheduling 
+can use any minute; others use whole hours.
+Request type – POST
+Request URL – {{url}}/api/v1/schedules
+Headers – auth-token: <token>
+Permission needed – Scheduler
+Request parameters – time window (applied immediately)
+{
+  "content": [
+    { "type": "creative", "id": "6735a1f2c9e77b0012ab34cd", "seconds": 
+15   ],
+  "screen_ids": ["605892b820e307aa46ec0284", "605892b820e307aa46ec0291"],
+  "start_date": "2026-11-20",
+  "end_date": "2026-12-31",
+  "days_of_week": ["mon", "tue", "wed", "thu", "fri"],
+  "start_time": "09:30",
+
+=====PAGE=====
+  "end_time": "11:45",
+  "mode": "add"
+}
+Request parameters – all day, preview first
+{
+  "content": [{ "type": "creative", "id": "6735a1f2c9e77b0012ab34cd" }],
+  "screen_ids": ["605892b820e307aa46ec0284"],
+  "start_date": "2026-11-20",
+  "end_date": "2026-11-30",
+  "all_day": true,
+  "mode": "replace",
+  "dry_run": true
+}
+Parameter Required Description
+content Yes 1–50 items, played in this order. type is creative 
+or playlist; id from List creatives / Upload 
+creative or your playlists.
+content[].seconds No Images and documents only, 5–3600. Default 20 
+(images) or 30 (documents). Videos and audio play 
+in full.
+screen_ids Yes From Get screens, up to 500
+start_date Yes Today or later
+end_date Yes Inclusive; at most 1 year after start_date
+days_of_week No Any of sun mon tue wed thu fri sat; default 
+every day
+all_day Either this… true = play all day in rotation
+start_time, end_time …or both of these Same day only. Minute scheduling: any HH:MM. 
+Otherwise whole hours, 24:00 = midnight.
+mode No add (default) keeps what is already scheduled in 
+that time. replace removes it first.
+Successful Response – status code 200 (applied)
+{
+  "status": "scheduled",
+  "message": "Scheduled on 2 screen(s), 2026-11-20 to 2026-12-31, 09:30–
+11:45.",
+  "note": "Screens download new content and pick up the schedule when they 
+next check in (offline screens when they reconnect).",
+  "preview": {
+    "what": [{ "type": "image", "name": "diwali-offer", "group": "Diwali 
+Campaign", "on_screen": "15 s" }],
+    "screens": { "count": 2, "names": ["Lobby Screen", "Cafeteria"] },
+    "dates": { "from": "2026-11-20", "to": "2026-12-31", "days": "Mon, Tue, 
+
+=====PAGE=====
+Wed, Thu, Fri", "count": 30 },
+    "time": "09:30–11:45",
+    "mode": "ADD: existing content stays; this is added alongside it"
+  },
+  "warnings": ["1 of the screens is offline right now (Cafeteria); they will 
+pick up the change when they next connect."]
+}
+Unsuccessful Response – status code 400
+{ "error": "Bad request", "code": "INVALID_REQUEST", "message": "These screen 
+ids were not found or you don't have access to them: 
+605892b820e307aa46ec0299" }

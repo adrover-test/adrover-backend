@@ -11,10 +11,15 @@ using Adrover.Api.Configuration;
 using Adrover.Api.Controllers;
 using Adrover.Api.Middleware;
 using Adrover.Application.DTOs.Advertisement;
+using Adrover.Application.Services;
 using Adrover.Data.Context;
 using Adrover.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
+RunDailyPlayAllocatorChecks();
+RunCampaignSetupChecks();
+await WorkerRegressionChecks.RunAsync();
 
 var databaseName = $"Adrover_RegistrationTests_{Guid.NewGuid():N}";
 var builder = WebApplication.CreateBuilder(args);
@@ -49,6 +54,12 @@ try
         var migration = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "registration-drafts.sql"));
         await db.Database.ExecuteSqlRawAsync(migration);
         await db.Database.ExecuteSqlRawAsync(migration);
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE [AdDailyDeliveries], [AdScreenAllocations], [ScheduleRuns], [ContentOutbox]");
+        await db.Database.ExecuteSqlRawAsync("DECLARE @sql nvarchar(max) = N''; SELECT @sql += N'ALTER TABLE [Advertisements] DROP CONSTRAINT ' + QUOTENAME(dc.name) + N';' FROM sys.default_constraints dc JOIN sys.columns c ON c.default_object_id = dc.object_id WHERE dc.parent_object_id = OBJECT_ID('dbo.Advertisements') AND c.name IN ('ContentState', 'ReadyForScheduling'); EXEC sp_executesql @sql;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE [Advertisements] DROP COLUMN [ContentId], [ContentAssetVersion], [ContentState], [ReadyForScheduling], [ReadyForSchedulingAtUtc], [ContentSubmittedAtUtc], [ContentError], [FirstPlayedAt], [FirstPlaybackDate], [LastReportedDay]");
+        var schedulingMigration = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "ad-scheduling.sql"));
+        await db.Database.ExecuteSqlRawAsync(schedulingMigration);
+        await db.Database.ExecuteSqlRawAsync(schedulingMigration);
     }
     await app.StartAsync();
     using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
@@ -105,6 +116,12 @@ try
     var orders = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = id, amount = 15750 })));
     var orderBodies = await Task.WhenAll(orders.Select(Data<JsonElement>));
     var paymentRecordId = orderBodies[0].GetProperty("id").GetGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var saved = await scope.ServiceProvider.GetRequiredService<AdRoverDbContext>().Advertisements.SingleAsync(a => a.Id == id);
+        Check(saved.StartDate == new DateTime(2027, 1, 1) && saved.EndDate == new DateTime(2027, 1, 21),
+            "A 21-day campaign must include the first and last dates exactly once.");
+    }
     Check(paymentRecordId != Guid.Empty && gateway.OrderCount == 1 && orderBodies.All(o =>
         o.GetProperty("orderId").GetString() == "order_test_1" && o.GetProperty("id").GetGuid() == paymentRecordId &&
         o.GetProperty("amountInPaise").GetInt32() == 1575000), "Concurrent checkout must reuse one order with consistent internal ID and paise amount");
@@ -133,6 +150,15 @@ try
     webhookRequest.Headers.Add("X-Razorpay-Signature", "valid");
     await ExpectStatus(await client.SendAsync(webhookRequest), HttpStatusCode.OK);
     Check((await Draft(resumed, id)).PaidAmount == 15750, "Late webhook must not downgrade completed payment");
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var queued = await db.ContentOutbox.Where(item => item.AdvertisementId == id).ToListAsync();
+        var ad = await db.Advertisements.SingleAsync(item => item.Id == id);
+        Check(queued.Count == 1 && queued[0].AssetVersion == 1 && queued[0].PaymentId == paymentRecordId &&
+              queued[0].VideoBlobPath.StartsWith($"ads/{id}/video_") && ad.ContentState == "Queued",
+            "Video-before-payment and repeated payment notifications must persist one private-path outbox message.");
+    }
 
     await ExpectStatus(await resumed.PostAsJsonAsync("/api/Advertisements", new CreateAdvertisementRequest()), HttpStatusCode.BadRequest);
     var created = await Data<AdvertisementDto>(await resumed.PostAsJsonAsync("/api/Advertisements", new CreateAdvertisementRequest
@@ -141,7 +167,8 @@ try
         VideoDurationSeconds = 12.5m, StartDate = DateTime.UtcNow.Date.AddDays(1), EndDate = DateTime.UtcNow.Date.AddDays(8),
         TargetPlays = 10000, AssignedCabs = 10, ApprovalAmount = 3000
     }));
-    await ExpectStatus(await Upload(resumed, created.Id, "video", "campaign.webm"), HttpStatusCode.OK);
+    await ExpectStatus(await Upload(resumed, created.Id, "video", "campaign.webm"), HttpStatusCode.BadRequest);
+    await ExpectStatus(await Upload(resumed, created.Id, "video", "campaign.mp4"), HttpStatusCode.OK);
     await ExpectStatus(await Upload(resumed, created.Id, "image", "banner.webp"), HttpStatusCode.OK);
     var ownAds = await Data<AdvertisementListResponse>(await resumed.GetAsync("/api/Advertisements/my-ads?pageNumber=1&pageSize=100"));
     Check(ownAds.Total == 2 && ownAds.Items.Any(a => a.Id == created.Id && a.VideoUrl != null && a.ImageUrl != null), "Created campaign and both assets must appear in real account list");
@@ -197,13 +224,234 @@ try
     await ExpectStatus(await unsigned.GetAsync("/api/ClientDashboard/summary"), HttpStatusCode.Unauthorized);
     await ExpectStatus(await unsigned.GetAsync("/api/Users/me"), HttpStatusCode.Unauthorized);
     await ExpectStatus(await unsigned.GetAsync("/api/Payments/history"), HttpStatusCode.Unauthorized);
-    Console.WriteLine("PASS: registration, uploads, payments, real client campaign creation/list, dashboard aggregates, private previews, owner-scoped playback, persisted profiles and paginated private billing history.");
+    var paidFirst = await Data<AdvertisementDto>(await resumed.PostAsJsonAsync("/api/Advertisements", new CreateAdvertisementRequest
+    {
+        Name = "Paid first", Brand = "Real account", Description = "Outbox test", TargetArea = "Hyderabad",
+        VideoDurationSeconds = 15, StartDate = DateTime.UtcNow.Date.AddDays(1), EndDate = DateTime.UtcNow.Date.AddDays(8),
+        TargetPlays = 10000, AssignedCabs = 10, ApprovalAmount = 3000
+    }));
+    var paidFirstOrder = await Data<JsonElement>(await resumed.PostAsJsonAsync("/api/Payments/create-order", new { advertisementId = paidFirst.Id, amount = 3000 }));
+    var paidFirstOrderId = paidFirstOrder.GetProperty("orderId").GetString()!;
+    gateway.Payments[paidFirstOrderId] = new RazorpayPaymentDetails("pay_second", paidFirstOrderId, 300000, "INR", "captured", "upi", null, null);
+    await ExpectStatus(await resumed.GetAsync($"/api/Payments/orders/{paidFirstOrderId}/status"), HttpStatusCode.OK);
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        Check(!await db.ContentOutbox.AnyAsync(item => item.AdvertisementId == paidFirst.Id), "Payment alone must not queue content processing.");
+    }
+    await ExpectStatus(await Upload(resumed, paidFirst.Id, "video", "paid-first.mp4"), HttpStatusCode.OK);
+    await ExpectStatus(await Upload(resumed, paidFirst.Id, "video", "replacement.mp4"), HttpStatusCode.BadRequest);
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var queued = await db.ContentOutbox.Where(item => item.AdvertisementId == paidFirst.Id).ToListAsync();
+        var ad = await db.Advertisements.SingleAsync(item => item.Id == paidFirst.Id);
+        Check(queued.Count == 1 && queued[0].PaymentId == paidFirstOrder.GetProperty("id").GetGuid() && ad.ContentState == "Queued",
+            "Payment-before-video must queue exactly once and reject replacing the queued video.");
+    }
+    var restrictionAd = await Data<AdvertisementDto>(await resumed.PostAsJsonAsync("/api/Advertisements", new CreateAdvertisementRequest
+    {
+        Name = "Restrictions campaign", Brand = "Real account", Description = "Restriction test", TargetArea = "Hyderabad",
+        VideoDurationSeconds = 12.5m, StartDate = DateTime.UtcNow.Date.AddDays(1), EndDate = DateTime.UtcNow.Date.AddDays(8),
+        TargetPlays = 10000, AssignedCabs = 10, ApprovalAmount = 3000
+    }));
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var ad = await db.Advertisements.SingleAsync(a => a.Id == restrictionAd.Id);
+        ad.StartDate = DateTime.UtcNow.AddHours(5.5).Date.AddDays(-1);
+        await db.SaveChangesAsync();
+    }
+    var incompleteAd = await Data<AdvertisementDto>(await resumed.GetAsync($"/api/Advertisements/{restrictionAd.Id}"));
+    Check(incompleteAd.SetupValidationMessage == CampaignSetup.StartDatePassedMessage,
+        "The advertisement API must expose the exact incomplete-setup message.");
+    var nextDay = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5).Date).AddDays(1);
+    await ExpectStatus(await anonymous.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}/reschedule", new { startDate = nextDay }), HttpStatusCode.NotFound);
+    await ExpectStatus(await resumed.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}/reschedule", new { startDate = nextDay.AddDays(-1) }), HttpStatusCode.UnprocessableEntity);
+    var allocationId = Guid.NewGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var run = new Adrover.Domain.Entities.ScheduleRun { RunDate = nextDay, StartedAtUtc = DateTime.UtcNow };
+        db.ScheduleRuns.Add(run);
+        await db.SaveChangesAsync();
+        db.AdScreenAllocations.Add(new Adrover.Domain.Entities.AdScreenAllocation
+        {
+            Id = allocationId, AdvertisementId = restrictionAd.Id, RunId = run.Id, ScreenId = "screen",
+            ContentId = "creative", PlayDate = nextDay, StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(9, 0),
+            Status = "Unconfirmed", CreatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+    }
+    foreach (var dispatchState in new[] { "Submitting", "Sent", "Unconfirmed" })
+    {
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+            var allocation = await db.AdScreenAllocations.SingleAsync(item => item.Id == allocationId);
+            allocation.Status = dispatchState;
+            await db.SaveChangesAsync();
+        }
+        await ExpectStatus(await resumed.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}/reschedule", new { startDate = nextDay }), HttpStatusCode.UnprocessableEntity);
+    }
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var allocation = await db.AdScreenAllocations.SingleAsync(item => item.Id == allocationId);
+        allocation.Status = "Failed";
+        await db.SaveChangesAsync();
+    }
+    var rescheduled = await Data<AdvertisementDto>(await resumed.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}/reschedule", new { startDate = nextDay }));
+    Check(DateOnly.FromDateTime(rescheduled.StartDate) == nextDay &&
+          (rescheduled.EndDate.Date - rescheduled.StartDate.Date).Days == (incompleteAd.EndDate.Date - incompleteAd.StartDate.Date).Days &&
+          rescheduled.TargetPlays == incompleteAd.TargetPlays && rescheduled.SetupValidationMessage == null,
+        "Rescheduling must preserve the purchased duration and contracted plays and clear the overdue message.");
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AdRoverDbContext>();
+        var ad = await db.Advertisements.SingleAsync(a => a.Id == restrictionAd.Id);
+        ad.FirstPlaybackDate = nextDay;
+        ad.LastReportedDay = nextDay;
+        await db.SaveChangesAsync();
+    }
+    await ExpectStatus(await Upload(resumed, restrictionAd.Id, "video", "replacement.mp4"), HttpStatusCode.UnprocessableEntity);
+    await ExpectStatus(await Upload(resumed, restrictionAd.Id, "image", "replacement.png"), HttpStatusCode.UnprocessableEntity);
+    await ExpectStatus(await resumed.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}/reschedule", new { startDate = nextDay.AddDays(1) }), HttpStatusCode.UnprocessableEntity);
+    await ExpectStatus(await resumed.DeleteAsync($"/api/Advertisements/{restrictionAd.Id}"), HttpStatusCode.UnprocessableEntity);
+    await ExpectStatus(await resumed.PutAsJsonAsync($"/api/Advertisements/{restrictionAd.Id}", new UpdateAdvertisementRequest
+    {
+        Name = "Changed", Brand = "Real account", Description = "Changed", TargetArea = "Hyderabad",
+        VideoDurationSeconds = 12.5m, StartDate = DateTime.UtcNow.Date.AddDays(1), EndDate = DateTime.UtcNow.Date.AddDays(8),
+        TargetPlays = 10000, AssignedCabs = 10, ApprovalAmount = 3000
+    }), HttpStatusCode.UnprocessableEntity);
+    var startedAd = await Data<AdvertisementDto>(await resumed.GetAsync($"/api/Advertisements/{restrictionAd.Id}"));
+    Check(startedAd.FirstPlayedAt == null && startedAd.FirstPlaybackDate == nextDay && startedAd.LastReportedDay == nextDay &&
+          !startedAd.IsEditable && startedAd.Name == "Restrictions campaign",
+        "A date-only report must lock edits without fabricating a timestamp or changing the campaign.");
+    Console.WriteLine("PASS: registration, uploads, payments, campaign lifecycle, playback edit locks, dashboard, previews and private billing history.");
 }
 finally
 {
     await app.StopAsync();
     await using var scope = app.Services.CreateAsyncScope();
     await scope.ServiceProvider.GetRequiredService<AdRoverDbContext>().Database.EnsureDeletedAsync();
+}
+
+static void RunDailyPlayAllocatorChecks()
+{
+    Check(DailyPlayAllocator.CalculateCommercialSecondsPerScreen() == 28_800,
+        "The default 10-hour window must reserve 20 percent of each 180-second loop.");
+
+    var start = new DateOnly(2026, 11, 24);
+    var end = new DateOnly(2026, 12, 23);
+    var campaignId = Guid.NewGuid();
+    const int playDurationSeconds = 15;
+    var screens = Enumerable.Range(1, 5)
+        .Select(index => new ScreenCommercialCapacity($"screen-{index}", 100 * playDurationSeconds))
+        .ToArray();
+
+    var firstDay = DailyPlayAllocator.Allocate(start,
+        [new CampaignPlayDemand(campaignId, start, end, 10_000, 0, playDurationSeconds)], screens);
+    Check(firstDay.Campaigns.Single().DailyTarget == 334 && firstDay.Campaigns.Single().ScheduledPlays == 334,
+        "The campaign start date must be included in the contracted-plays division.");
+    Check(firstDay.ScreenAllocations.Sum(item => item.PlannedPlays) == 334 &&
+          firstDay.HouseAdAllocations.Sum(item => item.AvailableSeconds) == 166 * playDurationSeconds,
+        "Per-screen capacity must be shared fairly and remaining inventory must go to the house ad.");
+
+    var nextDay = DailyPlayAllocator.Allocate(start.AddDays(1),
+        [new CampaignPlayDemand(campaignId, start, end, 10_000, 300, playDurationSeconds)], screens);
+    Check(nextDay.Campaigns.Single().DailyTarget == 335,
+        "Under-delivery on the first day must be redistributed across remaining campaign days.");
+    var lastDay = DailyPlayAllocator.Allocate(end,
+        [new CampaignPlayDemand(campaignId, start, end, 10_000, 9_750, playDurationSeconds)], screens);
+    Check(lastDay.Campaigns.Single().DailyTarget == 250,
+        "The last campaign day must target every remaining contracted play.");
+    var oneDay = DailyPlayAllocator.Allocate(start,
+        [new CampaignPlayDemand(campaignId, start, start, 100, 0, playDurationSeconds)], screens);
+    Check(oneDay.Campaigns.Single().DailyTarget == 100,
+        "A one-day campaign must allocate its full contract on its start date.");
+
+    var beforeStart = DailyPlayAllocator.Allocate(start.AddDays(-1),
+        [new CampaignPlayDemand(campaignId, start, end, 10_000, 0, playDurationSeconds)], screens);
+    Check(beforeStart.Campaigns.Single().DailyTarget == 0 &&
+          beforeStart.HouseAdAllocations.Sum(item => item.AvailableSeconds) == 500 * playDurationSeconds,
+        "Campaign plays must not be allocated before the start date; available inventory goes to the house ad.");
+
+    var completed = DailyPlayAllocator.Allocate(start.AddDays(1),
+        [new CampaignPlayDemand(campaignId, start, end, 10_000, 10_000, playDurationSeconds)], screens);
+    Check(completed.Campaigns.Single().DailyTarget == 0 &&
+          completed.HouseAdAllocations.Sum(item => item.AvailableSeconds) == 500 * playDurationSeconds,
+        "A fulfilled campaign must stop receiving plays and release its inventory to the house ad.");
+
+    var constrained = DailyPlayAllocator.Allocate(start,
+        [
+            new CampaignPlayDemand(Guid.NewGuid(), start, end, 300, 0, playDurationSeconds),
+            new CampaignPlayDemand(Guid.NewGuid(), start, end, 300, 0, playDurationSeconds)
+        ],
+        [new ScreenCommercialCapacity("limited-screen", 20 * playDurationSeconds)]);
+    Check(constrained.Campaigns.Sum(item => item.ScheduledPlays) == 20 &&
+          constrained.Campaigns.All(item => item.ScheduledPlays == 10),
+        "When commercial capacity is limited, active campaigns must share it proportionally.");
+
+    var proportional = DailyPlayAllocator.Allocate(start,
+        [new CampaignPlayDemand(Guid.NewGuid(), start, end, 600, 0, 10)],
+        [new ScreenCommercialCapacity("small", 100), new ScreenCommercialCapacity("large", 300)]);
+    Check(proportional.ScreenAllocations.Single(item => item.ScreenId == "small").PlannedPlays == 5 &&
+          proportional.ScreenAllocations.Single(item => item.ScreenId == "large").PlannedPlays == 15,
+        "A screen with three times the capacity must receive three times as many plays.");
+
+    var shortAd = Guid.NewGuid();
+    var longAd = Guid.NewGuid();
+    var fragmented = DailyPlayAllocator.Allocate(start,
+        [
+            new CampaignPlayDemand(shortAd, start, end, 300, 0, 5),
+            new CampaignPlayDemand(longAd, start, end, 30, 0, 1_000)
+        ],
+        [new ScreenCommercialCapacity("small-capacity", 100)]);
+    Check(fragmented.Campaigns.Single(item => item.AdvertisementId == shortAd).ScheduledPlays == 10 &&
+          fragmented.Campaigns.Single(item => item.AdvertisementId == longAd).Shortfall == 1 &&
+          fragmented.HouseAdAllocations.Single().AvailableSeconds == 50,
+        "An ad too long to fit must not strand capacity needed by another contracted campaign.");
+
+    var durationWeighted = DailyPlayAllocator.Allocate(start,
+        [
+            new CampaignPlayDemand(Guid.NewGuid(), start, end, 300, 0, 10),
+            new CampaignPlayDemand(Guid.NewGuid(), start, end, 300, 0, 20)
+        ],
+        [new ScreenCommercialCapacity("duration-screen", 150)]);
+    Check(durationWeighted.Campaigns.All(item => item.ScheduledPlays == 5) &&
+          durationWeighted.ScreenAllocations.Sum(item => item.PlannedPlays *
+              (item.AdvertisementId == durationWeighted.Campaigns[0].AdvertisementId ? 10 : 20)) <= 150,
+        $"Different creative durations must share capacity by playback time. Campaigns: {string.Join(",", durationWeighted.Campaigns.Select(item => $"{item.DailyTarget}/{item.ScheduledPlays}"))}; allocations: {string.Join(",", durationWeighted.ScreenAllocations.Select(item => $"{item.PlannedPlays}"))}; house seconds: {durationWeighted.HouseAdAllocations.Sum(item => item.AvailableSeconds)}.");
+}
+
+static void RunCampaignSetupChecks()
+{
+    var ad = new Adrover.Domain.Entities.Advertisement
+    {
+        StartDate = new DateTime(2026, 11, 24),
+        EndDate = new DateTime(2026, 12, 1)
+    };
+    var beforeMidnightInIndia = new DateTimeOffset(2026, 11, 24, 18, 29, 0, TimeSpan.Zero);
+    var afterMidnightInIndia = beforeMidnightInIndia.AddMinutes(2);
+    Check(CampaignSetup.GetValidationMessage(ad, beforeMidnightInIndia) == null,
+        "The campaign start date has not passed until midnight in India.");
+    Check(CampaignSetup.GetValidationMessage(ad, afterMidnightInIndia) == CampaignSetup.StartDatePassedMessage,
+        "Incomplete setup must show the exact overdue message after the start date in India.");
+    ad.ContentId = "creative-id";
+    ad.ReadyForScheduling = true;
+    ad.ApprovalAmount = 100;
+    ad.PaidAmount = 100;
+    ad.ReadyForSchedulingAtUtc = new DateTime(2026, 11, 24, 18, 31, 0, DateTimeKind.Utc);
+    Check(CampaignSetup.GetValidationMessage(ad, afterMidnightInIndia) == CampaignSetup.StartDatePassedMessage,
+        "Completing setup after the start date must not retroactively clear the rescheduling requirement.");
+    ad.ReadyForSchedulingAtUtc = new DateTime(2026, 11, 24, 18, 29, 0, DateTimeKind.Utc);
+    Check(CampaignSetup.GetValidationMessage(ad, afterMidnightInIndia) == null,
+        "A campaign ready on its start date must not be marked incomplete later.");
+    ad.Status = Adrover.Domain.Entities.AdvertisementStatus.Completed;
+    ad.ActualPlays = 1;
+    Check(CampaignSetup.HasStarted(ad),
+        "A completed campaign with recorded plays stays locked even when the exact first-play time is unavailable.");
 }
 
 static void Check(bool condition, string message)

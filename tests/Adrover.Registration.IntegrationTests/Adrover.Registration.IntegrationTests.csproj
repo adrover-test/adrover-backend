@@ -8,6 +8,8 @@
   <ItemGroup>
 	<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	<ProjectReference Include="..\..\src\Adrover.Api\Adrover.Api.csproj" />
+	<ProjectReference Include="..\..\src\Adrover.Functions\Adrover.Functions.csproj" />
 	<None Include="..\..\database\migrations\20261118-registration-drafts.sql" Link="registration-drafts.sql" CopyToOutputDirectory="PreserveNewest" />
+	<None Include="..\..\database\migrations\20261125-ad-scheduling.sql" Link="ad-scheduling.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -81,7 +81,7 @@ public class CreateAdvertisementRequestValidator : AbstractValidator<CreateAdver
 
         RuleFor(x => x.EndDate)
             .NotEmpty().WithMessage("End date is required")
-            .GreaterThan(x => x.StartDate).WithMessage("End date must be after start date");
+            .GreaterThanOrEqualTo(x => x.StartDate).WithMessage("End date must be on or after start date");
 
         RuleFor(x => x.TargetPlays)
             .GreaterThan(0).WithMessage("Target plays must be greater than 0");
@@ -171,7 +171,7 @@ public class UpdateAdvertisementRequestValidator : AbstractValidator<UpdateAdver
 
         RuleFor(x => x.EndDate)
             .NotEmpty().WithMessage("End date is required")
-            .GreaterThan(x => x.StartDate).WithMessage("End date must be after start date");
+            .GreaterThanOrEqualTo(x => x.StartDate).WithMessage("End date must be on or after start date");
 
         RuleFor(x => x.TargetPlays)
             .GreaterThan(0).WithMessage("Target plays must be greater than 0");

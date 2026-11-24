@@ -397,6 +397,7 @@ public class PaymentService : IPaymentService
         if (advertisement.Status == AdvertisementStatus.Draft && advertisement.RegistrationProgress != null)
             advertisement.Status = AdvertisementStatus.PendingApproval;
         advertisement.UpdatedAt = DateTime.UtcNow;
+        await ContentProcessingQueue.EnqueueIfReadyAsync(_db, advertisement, payment);
         await _advertisementRepository.UpdateAsync(advertisement);
     }
 

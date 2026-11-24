@@ -54,6 +54,8 @@ public class RegistrationDraftsController : ControllerBase
         var ad = await _db.Advertisements.FromSqlInterpolated(
             $"SELECT * FROM [Advertisements] WITH (UPDLOCK) WHERE [Id] = {id} AND [ClientId] = {clientId}")
             .SingleOrDefaultAsync() ?? throw new ResourceNotFoundException("Registration draft not found.");
+        if (CampaignSetup.HasStarted(ad))
+            throw new BusinessLogicException("This advertisement has started playing and can no longer be edited.", "AD_PLAYBACK_STARTED");
         if (ad.RegistrationProgress == null || ad.Status != AdvertisementStatus.Draft)
             throw new BusinessLogicException("This campaign is no longer an editable draft.");
         if (await _db.Payments.AnyAsync(p => p.AdvertisementId == id))
@@ -87,6 +89,13 @@ public class RegistrationDraftsController : ControllerBase
         Status = ad.Status.ToString(),
         Amount = ad.ApprovalAmount,
         PaidAmount = ad.PaidAmount,
-        PaymentStarted = paymentStarted
+        PaymentStarted = paymentStarted,
+        ContentState = ad.ContentState,
+        ReadyForScheduling = ad.ReadyForScheduling,
+        FirstPlayedAt = ad.FirstPlayedAt,
+        FirstPlaybackDate = ad.FirstPlaybackDate,
+        LastReportedDay = ad.LastReportedDay,
+        IsEditable = !paymentStarted && ad.Status == AdvertisementStatus.Draft && !CampaignSetup.HasStarted(ad),
+        SetupValidationMessage = CampaignSetup.GetValidationMessage(ad, DateTimeOffset.UtcNow)
     };
 }

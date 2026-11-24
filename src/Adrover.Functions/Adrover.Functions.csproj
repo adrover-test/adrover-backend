@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>net10.0</TargetFramework>
+	<AzureFunctionsVersion>v4</AzureFunctionsVersion>
+	<OutputType>Exe</OutputType>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+	<ProjectReference Include="..\Adrover.Application\Adrover.Application.csproj" />
+	<ProjectReference Include="..\Adrover.Data\Adrover.Data.csproj" />
+	<PackageReference Include="Azure.Identity" Version="1.14.2" Aliases="Identity" />
+	<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.18.2" />
+	<PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
+	<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+	<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.22.0" />
+	<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.1" />
+	<PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" />
+	<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
+  </ItemGroup>
+</Project>

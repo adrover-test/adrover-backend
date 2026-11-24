@@ -50,4 +50,11 @@ public class RegistrationDraftDto
     public decimal Amount { get; set; }
     public decimal PaidAmount { get; set; }
     public bool PaymentStarted { get; set; }
+    public string ContentState { get; set; } = "NotSubmitted";
+    public bool ReadyForScheduling { get; set; }
+    public DateTime? FirstPlayedAt { get; set; }
+    public DateOnly? FirstPlaybackDate { get; set; }
+    public DateOnly? LastReportedDay { get; set; }
+    public bool IsEditable { get; set; }
+    public string? SetupValidationMessage { get; set; }
 }

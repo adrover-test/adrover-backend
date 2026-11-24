@@ -25,7 +25,7 @@ public static class RegistrationDraftWorkflow
                 DateTimeStyles.None, out var start) || start.Year < 2000 || start.Year > 9990 || !progress.Consent)
             throw new BusinessLogicException("Complete a valid plan, start date and consent before checkout.");
         ad.StartDate = start;
-        ad.EndDate = start.AddDays(days);
+        ad.EndDate = start.AddDays(days - 1);
         ad.TargetPlays = (long)days * dailyPlays;
         ad.AssignedCabs = cabs;
         ad.ApprovalAmount = ad.TargetPlays * 0.30m;

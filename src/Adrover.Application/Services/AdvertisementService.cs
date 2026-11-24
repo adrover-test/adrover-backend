@@ -136,6 +136,8 @@ public class AdvertisementService : IAdvertisementService
 
     public async Task<AdvertisementDto> UpdateAdvertisementAsync(Guid id, Guid clientId, UpdateAdvertisementRequest request)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockAdvertisement(id);
         var advertisement = await _advertisementRepository.GetByIdAsync(id);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {id} not found");
@@ -143,10 +145,13 @@ public class AdvertisementService : IAdvertisementService
         if (advertisement.ClientId != clientId)
             throw new AuthorizationException("You can only update your own advertisements");
 
+        CampaignSetup.EnsureNotStarted(advertisement);
         if (advertisement.RegistrationProgress != null)
             throw new Application.Exceptions.ValidationException("Registration campaigns must be edited through their draft setup before checkout.");
         if (advertisement.Status != AdvertisementStatus.PendingApproval)
             throw new Application.Exceptions.ValidationException("Can only update advertisements in pending approval status");
+        if (await _db.Payments.AnyAsync(p => p.AdvertisementId == id))
+            throw new Application.Exceptions.ValidationException("Campaign settings are locked after checkout starts.");
 
         advertisement.Name = request.Name;
         advertisement.Brand = request.Brand;
@@ -161,6 +166,7 @@ public class AdvertisementService : IAdvertisementService
         advertisement.UpdatedAt = DateTime.UtcNow;
 
         await _advertisementRepository.UpdateAsync(advertisement);
+        await transaction.CommitAsync();
 
         _logger.LogInformation("Advertisement updated: {AdvertisementId}", id);
 
@@ -169,6 +175,8 @@ public class AdvertisementService : IAdvertisementService
 
     public async Task DeleteAdvertisementAsync(Guid id, Guid clientId)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await LockAdvertisement(id);
         var advertisement = await _advertisementRepository.GetByIdAsync(id);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {id} not found");
@@ -176,10 +184,14 @@ public class AdvertisementService : IAdvertisementService
         if (advertisement.ClientId != clientId)
             throw new AuthorizationException("You can only delete your own advertisements");
 
+        CampaignSetup.EnsureNotStarted(advertisement);
         if (advertisement.Status != AdvertisementStatus.PendingApproval && advertisement.Status != AdvertisementStatus.Rejected)
             throw new Application.Exceptions.ValidationException("Can only delete advertisements in pending or rejected status");
+        if (await _db.Payments.AnyAsync(p => p.AdvertisementId == id))
+            throw new Application.Exceptions.ValidationException("Campaigns cannot be deleted after checkout starts. Contact support.");
 
         await _advertisementRepository.DeleteAsync(advertisement);
+        await transaction.CommitAsync();
 
         _logger.LogInformation("Advertisement deleted: {AdvertisementId}", id);
     }
@@ -293,7 +305,7 @@ public class AdvertisementService : IAdvertisementService
     public async Task<FileUploadResponse> UploadVideoAsync(Guid advertisementId, Guid clientId, Stream fileStream, string fileName)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync();
-        await LockUpload(advertisementId);
+        await LockAdvertisement(advertisementId);
         var advertisement = await _advertisementRepository.GetByIdAsync(advertisementId);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {advertisementId} not found");
@@ -301,10 +313,14 @@ public class AdvertisementService : IAdvertisementService
         if (advertisement.ClientId != clientId)
             throw new AuthorizationException("You can only upload videos for your own advertisements");
 
+        CampaignSetup.EnsureNotStarted(advertisement);
+        await EnsureUploadAllowed(advertisement);
+        if (!string.IsNullOrEmpty(advertisement.VideoUrl) && advertisement.ContentState != "NotSubmitted")
+            throw new Application.Exceptions.ValidationException("The video cannot be replaced after content processing has started.");
         if (fileStream.Length > MaxVideoFileSize)
             throw new Application.Exceptions.ValidationException($"Video file size must not exceed {MaxVideoFileSize / (1024 * 1024)}MB");
 
-        var allowedExtensions = new[] { ".mp4", ".webm", ".mov" };
+        var allowedExtensions = new[] { ".mp4", ".mov" };
         var fileExtension = Path.GetExtension(fileName).ToLower();
         if (!allowedExtensions.Contains(fileExtension))
             throw new Application.Exceptions.ValidationException($"Video file type not allowed. Allowed types: {string.Join(", ", allowedExtensions)}");
@@ -314,6 +330,8 @@ public class AdvertisementService : IAdvertisementService
         var fileUrl = await _fileStorageService.UploadFileAsync("advertisements", blobFileName, fileStream);
         advertisement.VideoUrl = fileUrl;
         advertisement.UpdatedAt = DateTime.UtcNow;
+        var payment = await _db.Payments.SingleOrDefaultAsync(p => p.Id == advertisement.PaymentId);
+        await ContentProcessingQueue.EnqueueIfReadyAsync(_db, advertisement, payment);
         await _advertisementRepository.UpdateAsync(advertisement);
         await transaction.CommitAsync();
 
@@ -330,7 +348,7 @@ public class AdvertisementService : IAdvertisementService
     public async Task<FileUploadResponse> UploadImageAsync(Guid advertisementId, Guid clientId, Stream fileStream, string fileName)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync();
-        await LockUpload(advertisementId);
+        await LockAdvertisement(advertisementId);
         var advertisement = await _advertisementRepository.GetByIdAsync(advertisementId);
         if (advertisement == null)
             throw new NotFoundException($"Advertisement with ID {advertisementId} not found");
@@ -338,6 +356,8 @@ public class AdvertisementService : IAdvertisementService
         if (advertisement.ClientId != clientId)
             throw new AuthorizationException("You can only upload images for your own advertisements");
 
+        CampaignSetup.EnsureNotStarted(advertisement);
+        await EnsureUploadAllowed(advertisement);
         if (fileStream.Length > MaxImageFileSize)
             throw new Application.Exceptions.ValidationException($"Image file size must not exceed {MaxImageFileSize / (1024 * 1024)}MB");
 
@@ -364,11 +384,15 @@ public class AdvertisementService : IAdvertisementService
         };
     }
 
-    private async Task LockUpload(Guid id)
+    private async Task LockAdvertisement(Guid id)
     {
-        var ad = await _db.Advertisements.FromSqlInterpolated(
-            $"SELECT * FROM [Advertisements] WITH (UPDLOCK) WHERE [Id] = {id}").SingleOrDefaultAsync();
-        if (ad?.RegistrationProgress != null && await _db.Payments.AnyAsync(p => p.AdvertisementId == id))
+        await _db.Advertisements.FromSqlInterpolated(
+            $"SELECT * FROM [Advertisements] WITH (UPDLOCK) WHERE [Id] = {id}").LoadAsync();
+    }
+
+    private async Task EnsureUploadAllowed(Advertisement ad)
+    {
+        if (ad.RegistrationProgress != null && await _db.Payments.AnyAsync(p => p.AdvertisementId == ad.Id))
             throw new Application.Exceptions.ValidationException("Creative uploads are locked after checkout starts.");
     }
 
@@ -391,6 +415,15 @@ public class AdvertisementService : IAdvertisementService
             ActualPlays = ad.ActualPlays,
             AssignedCabs = ad.AssignedCabs,
             Status = ad.Status.ToString(),
+            ContentId = ad.ContentId,
+            ContentState = ad.ContentState,
+            ReadyForScheduling = ad.ReadyForScheduling,
+            FirstPlayedAt = ad.FirstPlayedAt,
+            FirstPlaybackDate = ad.FirstPlaybackDate,
+            LastReportedDay = ad.LastReportedDay,
+            IsEditable = !CampaignSetup.HasStarted(ad) && ad.PaidAmount == 0 &&
+                (ad.Status is AdvertisementStatus.Draft or AdvertisementStatus.PendingApproval),
+            SetupValidationMessage = CampaignSetup.GetValidationMessage(ad, DateTimeOffset.UtcNow),
             ApprovalAmount = ad.ApprovalAmount,
             PaidAmount = ad.PaidAmount,
             RejectionReason = ad.RejectionReason,

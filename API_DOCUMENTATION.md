@@ -12,6 +12,14 @@ All endpoints (except `/auth/*`) require JWT Bearer token in header:
 Authorization: Bearer <access_token>
 ```
 
+## Advertisement scheduling & playback
+
+The daily Function App scheduler (10 operating hours per screen, allocating plays
+from each campaign's inclusive start date, and filling freed commercial inventory
+with the house ad), the Service Bus video-processing workflow (Intelisa Content ID),
+the edit lock after first playback, and the incomplete-setup validation are
+specified in [ADVERTISEMENT_SCHEDULING_API.md](ADVERTISEMENT_SCHEDULING_API.md).
+
 ## Response Format
 
 ### Success Response

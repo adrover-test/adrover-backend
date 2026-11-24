@@ -1,0 +1,17 @@
+{
+  "version": "2.0",
+  "functionTimeout": "00:10:00",
+  "extensions": {
+    "serviceBus": {
+      "prefetchCount": 0,
+      "maxConcurrentCalls": 4,
+      "maxAutoLockRenewalDuration": "00:05:00",
+      "autoCompleteMessages": true
+    },
+    "timers": {
+      "scheduleMonitor": {
+        "enabled": true
+      }
+    }
+  }
+}

@@ -21,6 +21,10 @@ public class AdRoverDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<Enquiry> Enquiries { get; set; } = null!;
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<ContentOutbox> ContentOutbox { get; set; } = null!;
+    public DbSet<ScheduleRun> ScheduleRuns { get; set; } = null!;
+    public DbSet<AdScreenAllocation> AdScreenAllocations { get; set; } = null!;
+    public DbSet<AdDailyDelivery> AdDailyDeliveries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,7 +96,13 @@ public class AdRoverDbContext : DbContext
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
             entity.Property(e => e.ApprovedBy).HasMaxLength(255);
             entity.Property(e => e.RejectionReason).HasMaxLength(1000);
-            
+            entity.Property(e => e.ContentId).HasMaxLength(100);
+            entity.Property(e => e.ContentState).HasMaxLength(32).HasDefaultValue("NotSubmitted").IsRequired();
+            entity.Property(e => e.ReadyForScheduling).HasDefaultValue(false);
+            entity.Property(e => e.ContentError).HasMaxLength(1000);
+            entity.Property(e => e.LastReportedDay).HasColumnType("date");
+            entity.Property(e => e.FirstPlaybackDate).HasColumnType("date");
+
             entity.HasOne(e => e.Payment)
                 .WithOne(e => e.Advertisement)
                 .HasForeignKey<Payment>(e => e.AdvertisementId)
@@ -201,6 +211,46 @@ public class AdRoverDbContext : DbContext
             entity.Property(e => e.EntityId).HasMaxLength(100);
             entity.Property(e => e.IpAddress).HasMaxLength(45);
             entity.Property(e => e.UserAgent).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ContentOutbox>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.MessageId).IsUnique();
+            entity.HasIndex(e => new { e.PublishedAtUtc, e.NextAttemptAtUtc });
+            entity.HasIndex(e => new { e.AdvertisementId, e.AssetVersion }).IsUnique();
+            entity.Property(e => e.MessageId).HasMaxLength(150).IsRequired();
+            entity.Property(e => e.VideoBlobPath).HasMaxLength(1024).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(1000);
+        });
+
+        modelBuilder.Entity<ScheduleRun>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.RunDate).IsUnique();
+            entity.Property(e => e.Status).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(1000);
+        });
+
+        modelBuilder.Entity<AdScreenAllocation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.RunId, e.ScreenId, e.PlayDate, e.StartTime, e.ContentId }).IsUnique();
+            entity.HasIndex(e => new { e.AdvertisementId, e.PlayDate });
+            entity.Property(e => e.ScreenId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ContentId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(1000);
+            entity.Property(e => e.StartTime).HasColumnType("time(0)");
+            entity.Property(e => e.EndTime).HasColumnType("time(0)");
+            entity.HasOne<ScheduleRun>().WithMany().HasForeignKey(e => e.RunId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AdDailyDelivery>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.AdvertisementId, e.ScreenId, e.PlayDate }).IsUnique();
+            entity.Property(e => e.ScreenId).HasMaxLength(100).IsRequired();
         });
     }
 }

@@ -32,7 +32,7 @@ public class ClientDashboardController(AdRoverDbContext db, IFileStorageService 
         var data = new
         {
             TotalAdvertisements = await ads.CountAsync(cancellationToken),
-            ActiveAdvertisements = await ads.CountAsync(a => a.Status == AdvertisementStatus.Active, cancellationToken),
+            ActiveAdvertisements = await ads.CountAsync(a => a.Status == AdvertisementStatus.Active || a.Status == AdvertisementStatus.Started, cancellationToken),
             PendingAdvertisements = await ads.CountAsync(a => a.Status == AdvertisementStatus.PendingApproval, cancellationToken),
             TotalPlays = await ads.SumAsync(a => a.ActualPlays, cancellationToken),
             ActiveCabs = await recentPlays.Where(p => p.VehicleNumber != "").Select(p => p.VehicleNumber).Distinct().CountAsync(cancellationToken),

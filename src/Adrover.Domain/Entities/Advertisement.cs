@@ -11,7 +11,8 @@ public enum AdvertisementStatus
     Completed = 4,
     Rejected = 5,
     Cancelled = 6,
-    Draft = 7
+    Draft = 7,
+    Started = 8
 }
 
 /// <summary>
@@ -30,7 +31,17 @@ public class Advertisement
     public string? VideoUrl { get; set; }
     public string? ImageUrl { get; set; }
     public decimal VideoDurationSeconds { get; set; }
-    
+    public string? ContentId { get; set; }
+    public int? ContentAssetVersion { get; set; }
+    public string ContentState { get; set; } = "NotSubmitted";
+    public bool ReadyForScheduling { get; set; }
+    public DateTime? ReadyForSchedulingAtUtc { get; set; }
+    public DateTime? ContentSubmittedAtUtc { get; set; }
+    public string? ContentError { get; set; }
+    public DateOnly? LastReportedDay { get; set; }
+    public DateOnly? FirstPlaybackDate { get; set; }
+    public DateTime? FirstPlayedAt { get; set; }
+
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public long TargetPlays { get; set; }

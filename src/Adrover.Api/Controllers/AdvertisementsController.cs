@@ -234,6 +234,10 @@ public class AdvertisementsController : ControllerBase
                 Message = "Advertisement updated successfully"
             });
         }
+        catch (CampaignStartedException ex)
+        {
+            return UnprocessableEntity(new ApiErrorResponse { Error = new ErrorDetails { Code = "AD_PLAYBACK_STARTED", Message = ex.Message } });
+        }
         catch (NotFoundException ex)
         {
             _logger.LogWarning("Advertisement not found: {id}", id);
@@ -285,6 +289,10 @@ public class AdvertisementsController : ControllerBase
                 Success = true,
                 Message = "Advertisement deleted successfully"
             });
+        }
+        catch (CampaignStartedException ex)
+        {
+            return UnprocessableEntity(new ApiErrorResponse { Error = new ErrorDetails { Code = "AD_PLAYBACK_STARTED", Message = ex.Message } });
         }
         catch (NotFoundException ex)
         {
@@ -545,6 +553,10 @@ public class AdvertisementsController : ControllerBase
                 Message = "Video uploaded successfully"
             });
         }
+        catch (CampaignStartedException ex)
+        {
+            return UnprocessableEntity(new ApiErrorResponse { Error = new ErrorDetails { Code = "AD_PLAYBACK_STARTED", Message = ex.Message } });
+        }
         catch (NotFoundException ex)
         {
             _logger.LogWarning("Advertisement not found: {id}", id);
@@ -606,6 +618,10 @@ public class AdvertisementsController : ControllerBase
                 Data = response,
                 Message = "Image uploaded successfully"
             });
+        }
+        catch (CampaignStartedException ex)
+        {
+            return UnprocessableEntity(new ApiErrorResponse { Error = new ErrorDetails { Code = "AD_PLAYBACK_STARTED", Message = ex.Message } });
         }
         catch (NotFoundException ex)
         {

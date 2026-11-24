@@ -1,0 +1,7 @@
+2026-11-24 11:44:03.548 +05:30 [INF] Starting Adrover.Api
+2026-11-24 11:44:03.636 +05:30 [INF] User profile is available. Using 'C:\Users\akila\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-11-24 11:44:04.127 +05:30 [INF] Now listening on: https://localhost:7100
+2026-11-24 11:44:04.130 +05:30 [INF] Now listening on: http://localhost:5026
+2026-11-24 11:44:04.222 +05:30 [INF] Application started. Press Ctrl+C to shut down.
+2026-11-24 11:44:04.229 +05:30 [INF] Hosting environment: Development
+2026-11-24 11:44:04.249 +05:30 [INF] Content root path: C:\Users\akila\source\repos\adrover-backend\src\Adrover.Api
