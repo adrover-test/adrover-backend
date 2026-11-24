@@ -59,6 +59,71 @@ specified in [ADVERTISEMENT_SCHEDULING_API.md](ADVERTISEMENT_SCHEDULING_API.md).
 
 ---
 
+## Unfinished registrations and client follow-ups
+
+The admin client and enquiry lists (`GET /api/admin/clients` and
+`GET /api/admin/enquiries`) also accept `pageNumber` (starting at 1) and
+`pageSize` (1-100). Their collection payload contains `items`, `total`,
+`pageNumber` and `pageSize`. Pages sort by creation date descending, then ID,
+so equal timestamps do not shuffle records between pages.
+
+The unfinished-registration and follow-up routes below use `/api/admin` (not
+`/api/v1`) and require the `SuperAdminOnly` bearer-token policy. There is no
+anonymous access to these routes or automatic client outreach.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/admin/unfinished-registrations?pageNumber=1&pageSize=100` | Paginated clients with unpaid registration drafts |
+| GET | `/api/admin/clients/{clientId}/follow-ups` | Shared client history, newest first |
+| POST | `/api/admin/clients/{clientId}/follow-ups` | Save a note or send email/SMS and record the outcome |
+
+The list returns `items`, `total`, `pageNumber` and `pageSize`. Each client has
+`clientId`, `name`, `email`, `phone` and `drafts`. Drafts include campaign
+identity, registration `step`, saved timestamps, `amount`, `paidAmount`,
+`balance`, `hasVideo` and `hasBanner`. Amount and balance are null until a valid
+plan is available. Only saved registration-progress ads still in `Draft`, with
+an outstanding or uncalculated approval amount and no completed payment, qualify.
+Other unpaid campaigns, rejected/cancelled ads and paid registrations are excluded.
+
+Follow-up requests contain:
+
+```json
+{
+  "requestId": "11111111-1111-4111-8111-111111111111",
+  "channel": "note",
+  "subject": "",
+  "message": "Client requested a reminder to finish checkout.",
+  "nextFollowUpAt": null
+}
+```
+
+`channel` is `note`, `email` or `sms`. Messages are required and limited to
+2,000 characters (500 for SMS). Email requires a nonempty, single-line subject
+of at most 200 characters. `nextFollowUpAt` is an optional future ISO timestamp.
+Recipients always come from the saved client record. Notes are internal only.
+The POST endpoint permits 10 requests per minute per administrator.
+
+History entries contain `id`, `channel`, `subject`, `message`, `recipient`,
+`status`, nullable `error`, `by`, `createdAt` and nullable `nextFollowUpAt`.
+Status is `Saved` for notes, `Pending` before provider submission, `Accepted`
+after provider acceptance, `Failed` for explicit rejection/configuration failure,
+or `Unknown` for uncertain outcomes. Accepted does not mean delivered.
+Never blindly resend Pending/Unknown messages. Retrying the same request ID
+and payload returns the recorded entry without contacting the provider again;
+use a new ID only for a deliberate new action. A conflicting ID/payload is rejected.
+History persists in existing `AuditLogs` under `ClientRegistrationFollowUp`,
+remains accessible after payment, and needs no new database migration.
+
+Email uses `Smtp:Host`, `Port`, `Username`, `Password`, `FromEmail` and optional
+`FromName`, with STARTTLS. SMS requires `Msg91:AuthKey`,
+`Msg91:FollowUpTemplateId` and `Msg91:FollowUpMessageVariable`, matching an
+approved MSG91/DLT template. The template variable receives the message;
+other mandatory template variables are not supported. Client SMS numbers must
+be valid Indian mobile numbers (local 10 digits or prefixed with 91).
+These follow-up settings are separate from the admin enquiry template.
+Keep credentials in deployment configuration/user secrets, never source code.
+`Notifications:Mode=Simulation` explicitly records Failed without sending.
+
 ## Driver directory and login
 
 Drivers are stored in the separate `Drivers` table. Apply

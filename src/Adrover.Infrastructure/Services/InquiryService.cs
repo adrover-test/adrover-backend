@@ -17,6 +17,71 @@ public sealed class InquiryService(
     IHostEnvironment environment,
     ILogger<InquiryService> logger)
 {
+    public sealed record DeliveryResult(string Status, string? Error);
+
+    public async Task<DeliveryResult> SendClientMessageAsync(
+        string channel, string recipient, string subject, string message)
+    {
+        if (configuration["Notifications:Mode"] == "Simulation")
+            return new("Failed", "Notifications are in simulation mode. No client message was sent.");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try
+        {
+            var result = channel switch
+            {
+                "email" => await SendEmailMessageAsync(recipient, subject, message, null, timeout.Token),
+                "sms" => await SendClientSmsAsync(recipient, message, timeout.Token),
+                _ => new DeliveryResult("Failed", "Unsupported message channel.")
+            };
+            if (result.Status != "Accepted")
+                logger.LogWarning("Client {Channel} follow-up: {Status}. {Error}", channel, result.Status, result.Error);
+            return result;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException
+            or MailKit.Net.Smtp.SmtpProtocolException or System.Net.Sockets.SocketException or IOException)
+        {
+            logger.LogWarning("Client {Channel} follow-up provider outcome is unknown: {FailureType}.",
+                channel, ex.GetType().Name);
+            return new("Unknown", "Provider acceptance is unknown. Check delivery before sending another message.");
+        }
+    }
+
+    private async Task<DeliveryResult> SendClientSmsAsync(string phone, string message, CancellationToken ct)
+    {
+        var recipient = NormalizePhone(phone);
+        var authKey = configuration["Msg91:AuthKey"];
+        var template = configuration["Msg91:FollowUpTemplateId"];
+        var variable = configuration["Msg91:FollowUpMessageVariable"];
+        if (string.IsNullOrWhiteSpace(authKey) || string.IsNullOrWhiteSpace(template)
+            || string.IsNullOrWhiteSpace(variable) || !Regex.IsMatch(variable, "^[A-Za-z][A-Za-z0-9_]*$")
+            || variable.Equals("mobiles", StringComparison.OrdinalIgnoreCase)
+            || recipient == null || !Regex.IsMatch(recipient, "^91[6-9][0-9]{9}$"))
+            return new("Failed", "Configure MSG91 follow-up credentials, an approved message template/variable and a valid Indian client phone.");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://control.msg91.com/api/v5/flow")
+        {
+            Content = JsonContent.Create(new
+            {
+                template_id = template, short_url = "0",
+                recipients = new[] { new Dictionary<string, string> { ["mobiles"] = recipient, [variable] = message } }
+            })
+        };
+        request.Headers.Add("authkey", authKey);
+        using var response = await clients.CreateClient("notifications").SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return (int)response.StatusCode >= 400 && (int)response.StatusCode < 500
+                ? new("Failed", Failure("MSG91", response))
+                : new("Unknown", "MSG91 acceptance is unknown. Check with the provider before resending.");
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        if (document.RootElement.ValueKind == JsonValueKind.Object
+            && document.RootElement.TryGetProperty("type", out var type)
+            && type.ValueKind == JsonValueKind.String)
+        {
+            if (type.GetString() == "success") return new("Accepted", null);
+            if (type.GetString() == "error") return new("Failed", "MSG91 did not accept the SMS.");
+        }
+        return new("Unknown", "MSG91 returned an unrecognized response. Check with the provider before resending.");
+    }
+
     public async Task<List<(string Channel, bool Accepted, bool Simulated, string? Error)>> SendAsync(
         IReadOnlyDictionary<string, string> inquiry,
         string inquiryId,
@@ -69,24 +134,9 @@ public sealed class InquiryService(
     private async Task<string?> SendEmailAsync(
         IReadOnlyDictionary<string, string> inquiry, string id, CancellationToken token)
     {
-        var smtpHost = configuration["Smtp:Host"];
-        var smtpPortValue = configuration["Smtp:Port"];
-        var smtpUsername = configuration["Smtp:Username"];
-        var smtpPassword = configuration["Smtp:Password"];
-        var sender = configuration["Smtp:FromEmail"];
-        var senderName = configuration["Smtp:FromName"];
         var admin = configuration["Smtp:AdminEmail"];
-
-        if (string.IsNullOrWhiteSpace(smtpHost)
-            || !int.TryParse(smtpPortValue, out var smtpPort)
-            || smtpPort <= 0
-            || string.IsNullOrWhiteSpace(smtpUsername)
-            || string.IsNullOrWhiteSpace(smtpPassword)
-            || !MailAddress.TryCreate(sender, out _)
-            || !MailAddress.TryCreate(admin, out var recipient))
-        {
-            return "SMTP credentials or admin/sender email are not configured correctly.";
-        }
+        if (!MailAddress.TryCreate(admin, out var recipient))
+            return "SMTP admin email is not configured correctly.";
 
         var body = string.Join("\n", new[]
         {
@@ -100,30 +150,51 @@ public sealed class InquiryService(
             $"Anything we should know?: {Display(inquiry["message"])}"
         });
 
+        var result = await SendEmailMessageAsync(recipient.Address, $"Adrover inquiry - {inquiry["business"]}",
+            body, inquiry["email"], token);
+        return result.Error;
+    }
+
+    private async Task<DeliveryResult> SendEmailMessageAsync(
+        string recipient, string subject, string body, string? replyTo, CancellationToken token)
+    {
+        var smtpHost = configuration["Smtp:Host"];
+        var smtpUsername = configuration["Smtp:Username"];
+        var smtpPassword = configuration["Smtp:Password"];
+        var sender = configuration["Smtp:FromEmail"];
+        if (string.IsNullOrWhiteSpace(smtpHost)
+            || !int.TryParse(configuration["Smtp:Port"], out var smtpPort) || smtpPort <= 0 || smtpPort > 65535
+            || string.IsNullOrWhiteSpace(smtpUsername) || string.IsNullOrWhiteSpace(smtpPassword)
+            || !MailAddress.TryCreate(sender, out _) || !MailAddress.TryCreate(recipient, out _))
+            return new("Failed", "SMTP credentials or client/sender email are not configured correctly.");
         try
         {
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress(senderName ?? "Adrover", sender));
-            message.To.Add(MailboxAddress.Parse(recipient.Address));
-            message.Subject = $"Adrover inquiry - {inquiry["business"]}";
-            message.ReplyTo.Add(MailboxAddress.Parse(inquiry["email"]));
+            message.From.Add(new MailboxAddress(configuration["Smtp:FromName"] ?? "Adrover", sender));
+            message.To.Add(MailboxAddress.Parse(recipient));
+            message.Subject = subject;
+            if (replyTo != null) message.ReplyTo.Add(MailboxAddress.Parse(replyTo));
             message.Body = new TextPart("plain") { Text = body };
 
             using var smtp = new MailKit.Net.Smtp.SmtpClient();
             await smtp.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls, token);
             await smtp.AuthenticateAsync(smtpUsername, smtpPassword, token);
             await smtp.SendAsync(message, token);
-            await smtp.DisconnectAsync(true, token);
-
-            return null;
+            return new("Accepted", null);
         }
-        catch (Exception ex)
-            when (ex is MailKit.Net.Smtp.SmtpCommandException
-                or MailKit.Net.Smtp.SmtpProtocolException
-                or System.Net.Sockets.SocketException
-                or IOException)
+        catch (Exception ex) when (ex is MailKit.Net.Smtp.SmtpCommandException
+            or MailKit.Security.AuthenticationException or MailKit.Security.SslHandshakeException
+            or MailKit.ServiceNotAuthenticatedException or NotSupportedException)
         {
-            return "SMTP rejected the request or failed to connect.";
+            logger.LogWarning("SMTP rejected a message: {FailureType}.", ex.GetType().Name);
+            return new("Failed", "SMTP authentication or message submission was rejected.");
+        }
+        catch (Exception ex) when ((ex is MailKit.Net.Smtp.SmtpProtocolException
+            or System.Net.Sockets.SocketException or IOException or OperationCanceledException)
+            && !token.IsCancellationRequested)
+        {
+            logger.LogWarning("SMTP acceptance is unknown: {FailureType}.", ex.GetType().Name);
+            return new("Unknown", "SMTP acceptance is unknown. Check delivery before resending.");
         }
     }
 
