@@ -48,7 +48,7 @@ public sealed class ContentProcessor(
         if (advertisement is null || advertisement.Status is AdvertisementStatus.Cancelled or AdvertisementStatus.Rejected)
             return ContentProcessingResult.Complete;
 
-        if (message.AssetVersion != GetCurrentAssetVersion(message.AdvertisementId))
+        if (message.AssetVersion != await GetCurrentAssetVersionAsync(message.AdvertisementId, cancellationToken))
         {
             logger.LogInformation("Ignoring stale content asset version {AssetVersion} for advertisement {AdvertisementId}.", message.AssetVersion, message.AdvertisementId);
             return ContentProcessingResult.Complete;
@@ -196,9 +196,9 @@ public sealed class ContentProcessor(
         await command.ExecuteNonQueryAsync();
     }
 
-    private int GetCurrentAssetVersion(Guid advertisementId)
+    private async Task<int> GetCurrentAssetVersionAsync(Guid advertisementId, CancellationToken cancellationToken)
     {
-        return db.ContentOutbox.Where(item => item.AdvertisementId == advertisementId)
-            .Select(item => item.AssetVersion).DefaultIfEmpty(0).Max();
+        return await db.ContentOutbox.Where(item => item.AdvertisementId == advertisementId)
+            .MaxAsync(item => (int?)item.AssetVersion, cancellationToken) ?? 0;
     }
 }

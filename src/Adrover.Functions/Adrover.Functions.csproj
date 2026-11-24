@@ -7,6 +7,9 @@
 	<Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="local.settings.json" />
+  </ItemGroup>
+  <ItemGroup>
 	<ProjectReference Include="..\Adrover.Application\Adrover.Application.csproj" />
 	<ProjectReference Include="..\Adrover.Data\Adrover.Data.csproj" />
 	<PackageReference Include="Azure.Identity" Version="1.14.2" Aliases="Identity" />

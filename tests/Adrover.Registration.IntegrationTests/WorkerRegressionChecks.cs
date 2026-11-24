@@ -4,9 +4,12 @@ using System.Text.Json;
 using Adrover.Data.Context;
 using Adrover.Domain.Entities;
 using Adrover.Functions.Configuration;
+using Adrover.Functions.Contracts;
 using Adrover.Functions.Intelisa;
 using Adrover.Functions.Services;
+using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -17,7 +20,39 @@ internal static class WorkerRegressionChecks
         await StaleProofUsesReportedFreshnessAndUnconfirmedDispatchIsPersisted();
         await MissingTargetAreaMappingBlocksPaidCreative();
         await IntelisaUploadRejectionIsClassifiedAsDefinitive();
-        Console.WriteLine("Worker regression checks passed: stale freshness, explicit screen mapping, unconfirmed schedule, Intelisa upload rejection.");
+        await ContentProcessorUsesLatestOutboxVersion();
+        Console.WriteLine("Worker regression checks passed: stale freshness, explicit screen mapping, unconfirmed schedule, Intelisa upload rejection, and content versions.");
+    }
+
+    private static async Task ContentProcessorUsesLatestOutboxVersion()
+    {
+        await using var fixture = await WorkerFixture.CreateAsync();
+        var ad = fixture.AddCampaign(fixture.Today, targetPlays: 5, actualPlays: 0);
+        ad.ContentId = null;
+        ad.ContentAssetVersion = null;
+        ad.ContentState = "Uploading";
+        ad.ReadyForScheduling = false;
+        await fixture.Db.SaveChangesAsync();
+
+        var intelisa = new IntelisaClient(new HttpClient(fixture.Intelisa), Options.Create(new IntelisaOptions
+        {
+            BaseUrl = "https://intelisa.test", UserName = "test-user", Password = "test-password"
+        }));
+        var processor = new ContentProcessor(fixture.Db, new BlobServiceClient(new Uri("https://storage.invalid")),
+            intelisa, new ConfigurationBuilder().Build(), NullLogger<ContentProcessor>.Instance);
+        var message = new ContentProcessingMessage("AdContentReady.v1", ad.Id, 1, "ads/test.mp4", null, DateTime.UtcNow);
+
+        await processor.ProcessAsync(message, CancellationToken.None);
+        Check(ad.ContentState == "Uploading", "A message without an outbox record must be ignored.");
+
+        fixture.Db.ContentOutbox.Add(ContentOutbox.Create(ad.Id, 1, "ads/old.mp4", ad.Payment!.Id, DateTime.UtcNow));
+        fixture.Db.ContentOutbox.Add(ContentOutbox.Create(ad.Id, 2, "ads/new.mp4", ad.Payment!.Id, DateTime.UtcNow));
+        await fixture.Db.SaveChangesAsync();
+        await processor.ProcessAsync(message, CancellationToken.None);
+        Check(ad.ContentState == "Uploading", "An older asset version must be ignored.");
+        var result = await processor.ProcessAsync(message with { AssetVersion = 2 }, CancellationToken.None);
+        Check(result == ContentProcessingResult.Complete && ad.ContentState == "UploadUnconfirmed" && !string.IsNullOrEmpty(ad.ContentError),
+            "The latest asset version must be processed and preserve an uncertain upload for reconciliation.");
     }
 
     private static async Task StaleProofUsesReportedFreshnessAndUnconfirmedDispatchIsPersisted()
