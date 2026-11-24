@@ -1,0 +1,5 @@
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH('dbo.Enquiries', 'Note') IS NULL
+	ALTER TABLE [dbo].[Enquiries] ADD [Note] nvarchar(2000) NULL;
+COMMIT TRANSACTION;

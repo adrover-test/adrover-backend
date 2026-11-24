@@ -185,9 +185,11 @@ public class AdRoverDbContext : DbContext
             entity.Property(e => e.Phone).HasMaxLength(20).IsRequired();
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
             entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.BusinessName).HasMaxLength(255);
             entity.Property(e => e.Subject).HasMaxLength(255).IsRequired();
             entity.Property(e => e.SourceChannel).HasMaxLength(50);
             entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Note).HasMaxLength(2000);
         });
 
         // AuditLog configuration

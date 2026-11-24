@@ -28,10 +28,12 @@ public class Enquiry
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? BusinessName { get; set; }
     public string Message { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string? SourceChannel { get; set; } // WhatsApp, Email, WebForm
     public string Status { get; set; } = "New"; // New, In Progress, Resolved
+    public string? Note { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
 }

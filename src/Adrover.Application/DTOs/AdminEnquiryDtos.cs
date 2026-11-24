@@ -29,3 +29,9 @@ public sealed class AdminEnquiryListResponseDto
     public int PageNumber { get; set; }
     public int PageSize { get; set; }
 }
+
+public sealed class AdminEnquiryFollowUpRequest
+{
+    public string ReplyStatus { get; set; } = string.Empty;
+    public string? InternalNote { get; set; }
+}
