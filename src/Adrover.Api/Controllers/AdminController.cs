@@ -507,8 +507,8 @@ public class AdminController : ControllerBase
                 ClientsPresent = await _dbContext.Users.AsNoTracking()
                     .CountAsync(user => user.Role == UserRole.Client, cancellationToken),
                 Enquiries = await _dbContext.Enquiries.AsNoTracking().CountAsync(cancellationToken),
-                CabsInDirectory = await _dbContext.Users.AsNoTracking()
-                    .CountAsync(user => user.Role == UserRole.Driver && user.IsActive, cancellationToken),
+                CabsInDirectory = await _dbContext.Drivers.AsNoTracking()
+                    .CountAsync(driver => driver.IsActive, cancellationToken),
                 AdsAwaitingApproval = await _dbContext.Advertisements.AsNoTracking()
                     .CountAsync(advertisement => advertisement.Status == AdvertisementStatus.PendingApproval, cancellationToken),
                 TotalAds = await _dbContext.Advertisements.AsNoTracking().CountAsync(cancellationToken),
@@ -624,29 +624,14 @@ public class AdminController : ControllerBase
     /// <summary>
     /// Get enquiries list for admin enquiries page
     /// </summary>
-    [AllowAnonymous]
     [HttpGet("enquiries")]
     public async Task<IActionResult> GetEnquiries(
         [FromQuery] string? search,
         [FromQuery] string? status,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
-            {
-                return BadRequest(new ApiErrorResponse
-                {
-                    Error = new ErrorDetails
-                    {
-                        Code = "INVALID_REQUEST",
-                        Message = "Choose a valid page number and page size (1-100)."
-                    }
-                });
-            }
-
             var allEnquiries = _dbContext.Enquiries.AsNoTracking();
             var summary = new AdminEnquirySummaryDto
             {
@@ -661,6 +646,7 @@ public class AdminController : ControllerBase
                 var term = search.Trim();
                 query = query.Where(enquiry =>
                     enquiry.Name.Contains(term)
+                    || (enquiry.BusinessName != null && enquiry.BusinessName.Contains(term))
                     || enquiry.Email.Contains(term)
                     || enquiry.Phone.Contains(term)
                     || enquiry.Subject.Contains(term)
@@ -680,20 +666,18 @@ public class AdminController : ControllerBase
             var total = await query.CountAsync(cancellationToken);
             var items = await query
                 .OrderByDescending(enquiry => enquiry.CreatedAt)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
                 .Select(enquiry => new AdminEnquiryListItemDto
                 {
                     EnquiryId = enquiry.Id,
-                    BusinessOrName = ExtractFromMessage(enquiry.Message, "Business") ?? enquiry.Name,
+                    BusinessOrName = enquiry.BusinessName ?? ExtractFromMessage(enquiry.Message, "Business") ?? enquiry.Name,
                     ContactName = enquiry.Name,
                     ReceivedAt = enquiry.CreatedAt,
                     Email = enquiry.Email,
                     Phone = string.IsNullOrWhiteSpace(enquiry.Phone) ? "Not provided" : enquiry.Phone,
                     Objective = enquiry.Subject,
-                    Requirements = ExtractFromMessage(enquiry.Message, "Additional details") ?? enquiry.Message,
+                    Requirements = ExtractFromMessage(enquiry.Message, "Additional details") ?? string.Empty,
                     ReplyStatus = enquiry.Status == "Resolved" ? "Replied" : "Awaiting reply",
-                    InternalNotes = string.Empty
+                    InternalNotes = enquiry.Note ?? string.Empty
                 })
                 .ToListAsync(cancellationToken);
 
@@ -705,8 +689,8 @@ public class AdminController : ControllerBase
                     Summary = summary,
                     Items = items,
                     Total = total,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
+                    PageNumber = 1,
+                    PageSize = total
                 },
                 Message = "Enquiries retrieved successfully"
             });
@@ -726,6 +710,91 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Save enquiry follow-up (reply status and internal note)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPut("enquiries/{enquiryId:guid}/follow-up")]
+    public async Task<IActionResult> SaveEnquiryFollowUp(
+        [FromRoute] Guid enquiryId,
+        [FromBody] AdminEnquiryFollowUpRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.ReplyStatus))
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "INVALID_REQUEST",
+                        Message = "Reply status is required."
+                    }
+                });
+            }
+
+            var replyStatus = request.ReplyStatus.Trim();
+            if (!string.Equals(replyStatus, "Replied", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(replyStatus, "Awaiting reply", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(replyStatus, "Awaiting", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "INVALID_REQUEST",
+                        Message = "Reply status must be Replied or Awaiting reply."
+                    }
+                });
+            }
+
+            var enquiry = await _dbContext.Enquiries.SingleOrDefaultAsync(e => e.Id == enquiryId, cancellationToken);
+            if (enquiry is null)
+            {
+                return NotFound(new ApiErrorResponse
+                {
+                    Error = new ErrorDetails
+                    {
+                        Code = "ENQUIRY_NOT_FOUND",
+                        Message = "Enquiry not found."
+                    }
+                });
+            }
+
+            var replied = string.Equals(replyStatus, "Replied", StringComparison.OrdinalIgnoreCase);
+            enquiry.Status = replied ? "Resolved" : "New";
+            enquiry.RespondedAt = replied ? DateTime.UtcNow : null;
+            enquiry.Note = string.IsNullOrWhiteSpace(request.InternalNote) ? null : request.InternalNote.Trim();
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Data = new
+                {
+                    enquiryId = enquiry.Id,
+                    replyStatus = replied ? "Replied" : "Awaiting reply",
+                    internalNote = enquiry.Note ?? string.Empty
+                },
+                Message = "Enquiry follow-up saved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving enquiry follow-up");
+            return StatusCode(500, new ApiErrorResponse
+            {
+                Error = new ErrorDetails
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "Error saving enquiry follow-up"
+                }
+            });
+        }
+    }
+
+    /// <summary>
     /// Get user management statistics
     /// </summary>
     [HttpGet("users/statistics")]
@@ -735,14 +804,17 @@ public class AdminController : ControllerBase
         {
             var adminId = GetUserIdFromToken();
 
-            // Placeholder for user statistics
+            var totalUsers = await _dbContext.Users.CountAsync();
+            var activeUsers = await _dbContext.Users.CountAsync(user => user.IsActive);
+            var clientsCount = await _dbContext.Users.CountAsync(user => user.Role == UserRole.Client);
+            var driversCount = await _dbContext.Drivers.CountAsync();
             var stats = new
             {
-                totalUsers = 0,
-                activeUsers = 0,
-                inactiveUsers = 0,
-                clientsCount = 0,
-                driversCount = 0,
+                totalUsers,
+                activeUsers,
+                inactiveUsers = totalUsers - activeUsers,
+                clientsCount,
+                driversCount,
                 lastUpdated = DateTime.UtcNow
             };
 

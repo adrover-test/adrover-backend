@@ -21,6 +21,13 @@ public class AdRoverDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<Enquiry> Enquiries { get; set; } = null!;
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<Driver> Drivers { get; set; } = null!;
+    public DbSet<DriverAssignment> DriverAssignments { get; set; } = null!;
+    public DbSet<DriverPlayback> DriverPlaybacks { get; set; } = null!;
+    public DbSet<DriverPayout> DriverPayouts { get; set; } = null!;
+    public DbSet<DriverNotification> DriverNotifications { get; set; } = null!;
+    public DbSet<DriverIssue> DriverIssues { get; set; } = null!;
+    public DbSet<DriverIssueHistory> DriverIssueHistory { get; set; } = null!;
     public DbSet<ContentOutbox> ContentOutbox { get; set; } = null!;
     public DbSet<ScheduleRun> ScheduleRuns { get; set; } = null!;
     public DbSet<AdScreenAllocation> AdScreenAllocations { get; set; } = null!;
@@ -195,10 +202,100 @@ public class AdRoverDbContext : DbContext
             entity.Property(e => e.Phone).HasMaxLength(20).IsRequired();
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
             entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.BusinessName).HasMaxLength(255);
             entity.Property(e => e.Subject).HasMaxLength(255).IsRequired();
             entity.Property(e => e.SourceChannel).HasMaxLength(50);
             entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Note).HasMaxLength(2000);
         });
+
+        // Driver configuration
+        modelBuilder.Entity<Driver>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Phone).IsUnique();
+            entity.HasIndex(e => e.VehicleNumber).IsUnique();
+            entity.HasIndex(e => e.ScreenId).IsUnique();
+            entity.Property(e => e.FullName).HasMaxLength(120).IsRequired();
+            entity.Property(e => e.Phone).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.VehicleNumber).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.VehicleModel).HasMaxLength(120).IsRequired();
+            entity.Property(e => e.ServiceArea).HasMaxLength(120).IsRequired();
+            entity.Property(e => e.ScreenId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.PasswordHash).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(255);
+            entity.Property(e => e.Address).HasMaxLength(300);
+            entity.Property(e => e.PreferredLanguage).HasMaxLength(2);
+            entity.Property(e => e.PhotoBlobName).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<DriverAssignment>(entity =>
+        {
+            entity.HasIndex(e => new { e.DriverId, e.AdvertisementId, e.ScheduledAt }).IsUnique();
+            entity.Property(e => e.RatePerPlay).HasPrecision(18, 4);
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.HasOne(e => e.Driver).WithMany().HasForeignKey(e => e.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Advertisement).WithMany().HasForeignKey(e => e.AdvertisementId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverPlayback>(entity =>
+        {
+            entity.HasIndex(e => e.RequestId).IsUnique();
+            entity.HasIndex(e => e.PlayedAt);
+            entity.Property(e => e.Amount).HasPrecision(18, 4);
+            entity.HasOne(e => e.Assignment).WithMany().HasForeignKey(e => e.AssignmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverPayout>(entity =>
+        {
+            entity.HasIndex(e => e.TransactionId).IsUnique();
+            entity.Property(e => e.TransactionId).HasMaxLength(100);
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.Property(e => e.Reference).HasMaxLength(200);
+            entity.HasOne<Driver>().WithMany().HasForeignKey(e => e.DriverId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverNotification>(entity =>
+        {
+            entity.HasIndex(e => new { e.DriverId, e.CreatedAt });
+            entity.Property(e => e.Title).HasMaxLength(255);
+            entity.Property(e => e.Message).HasMaxLength(2000);
+            entity.Property(e => e.Type).HasMaxLength(100);
+            entity.HasOne<Driver>().WithMany().HasForeignKey(e => e.DriverId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverIssue>(entity =>
+        {
+            entity.HasIndex(e => new { e.DriverId, e.RequestId }).IsUnique();
+            entity.Property(e => e.Category).HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.Property(e => e.Language).HasMaxLength(2);
+            entity.Property(e => e.ContactMobile).HasMaxLength(20);
+            entity.Property(e => e.VehicleRegistration).HasMaxLength(20);
+            entity.Property(e => e.AttachmentBlobName).HasMaxLength(500);
+            entity.Property(e => e.AdminResponse).HasMaxLength(2000);
+            entity.HasOne<Driver>().WithMany().HasForeignKey(e => e.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Advertisement>().WithMany().HasForeignKey(e => e.AdvertisementId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(e => e.History).WithOne().HasForeignKey(e => e.IssueId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<DriverIssueHistory>(entity =>
+        {
+            entity.ToTable("DriverIssueHistory");
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.Property(e => e.Note).HasMaxLength(2000);
+            entity.Property(e => e.By).HasMaxLength(10);
+        });
+        foreach (var type in new[] { typeof(Driver), typeof(DriverAssignment), typeof(DriverPlayback),
+            typeof(DriverPayout), typeof(DriverNotification), typeof(DriverIssue), typeof(DriverIssueHistory) })
+        {
+            foreach (var property in modelBuilder.Entity(type).Metadata.GetProperties()
+                .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?)))
+            {
+                property.SetValueConverter(new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+                    value => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : value,
+                    value => DateTime.SpecifyKind(value, DateTimeKind.Utc)));
+            }
+        }
 
         // AuditLog configuration
         modelBuilder.Entity<AuditLog>(entity =>

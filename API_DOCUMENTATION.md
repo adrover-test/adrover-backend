@@ -59,6 +59,123 @@ specified in [ADVERTISEMENT_SCHEDULING_API.md](ADVERTISEMENT_SCHEDULING_API.md).
 
 ---
 
+## Driver directory and login
+
+Drivers are stored in the separate `Drivers` table. Apply
+`database/migrations/20261122-drivers.sql` where the table is absent.
+The directory requires a SuperAdmin bearer token, obtained through
+`POST /api/v1/auth/admin-login` with the administrator's email and password.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/drivers` | List drivers without password hashes |
+| POST | `/api/v1/drivers` | Create driver with a generated password |
+| PUT | `/api/v1/drivers/{id}` | Edit driver, screen ID, and optionally replace the password atomically |
+| POST | `/api/v1/drivers/{id}/password` | Replace a password |
+| POST | `/api/v1/drivers/auth/login` | Sign in with `phone` and `password` |
+| GET | `/api/v1/drivers/profile` | Current driver's basic profile |
+
+Passwords are one-way BCrypt hashes and cannot be recovered. An administrator
+must share a generated password before saving; resetting it invalidates existing
+driver access tokens. Login is limited to five requests per minute per IP per
+application instance. Deploy behind HTTPS and a shared rate limiter for
+multi-instance deployments. Use a unique JWT signing key supplied through
+configuration, not the development default. Public registration creates Client
+accounts only; drivers are provisioned through the directory.
+
+Apply `database/migrations/20261124-driver-operations.sql` after the driver
+directory script. It is additive and rerunnable. It adds profile address,
+language and private photo references, and separate `DriverAssignments`,
+`DriverPlaybacks`, `DriverPayouts`, `DriverNotifications`, `DriverIssues` and
+`DriverIssueHistory` tables. None of these require a driver entry in `Users`.
+
+### Driver operations
+
+Driver reads return the endpoint data directly, matching the driver frontend
+(not the generic `data` envelope). Successful language and read-status changes,
+ticket confirmation/reopening, and admin updates return `204 No Content`.
+
+| Method | Route suffix under `/api/v1/drivers` | Purpose |
+| --- | --- | --- |
+| PUT | `/profile` | Save `name`, nullable `email`, nullable `address` |
+| POST | `/profile/photo` | Multipart `photo`; JPEG/PNG, maximum 5 MB |
+| PUT | `/language` | Save `preferredLanguage`: `en`, `hi`, or `te` |
+| GET | `/vehicle` | Vehicle, screen ID and assignment availability |
+| GET | `/dashboard` | Recorded playback, earnings and today's assignment totals |
+| GET | `/advertisements/today` | Today's explicitly assigned schedules; `{items}` |
+| GET | `/advertisements/history?from=yyyy-MM-dd&to=yyyy-MM-dd` | Owned playback grouped by campaign/day, maximum 366 days |
+| GET | `/earnings?period=weekly\|monthly` | Lifetime earned/pending/processing/released totals, current-month earnings, selected-period per-ad earnings |
+| GET | `/payments?period=weekly\|monthly` | Own payouts whose earned period overlaps the selected calendar period |
+| GET | `/payments/{id}` | Own payout details |
+| GET | `/notifications` | Own notifications and unread count |
+| PUT | `/notifications/{id}/read` | Persist read status, `404` for unknown or other-driver IDs |
+| GET | `/issues` | Own ticket summaries |
+| GET | `/issues/{id}` | Ticket history and private attachment link |
+| POST | `/issues` | Multipart ticket submission with UUID `Idempotency-Key` |
+| POST | `/issues/{id}/confirm` | Confirm an unconfirmed resolved ticket |
+| POST | `/issues/{id}/reopen` | Reopen an unconfirmed resolved/rejected ticket with `reason` (10–2000 characters) |
+
+Ticket form fields: `category`, `description` (10–2000 characters),
+optional `advertisementId` (the selected **assignment ID** returned as today's
+schedule `id`), optional `vehicleId` (own driver's ID), `occurredAt`,
+`contactMobile` (10-digit Indian mobile), `language`, and optional JPEG/PNG
+`attachment` (5 MB). Retrying the same key returns the existing ticket; changed
+ticket details with the same key return `409`. An attachment must not be changed
+when retrying the same request.
+
+All times and calendar periods are UTC; clients submit ISO timestamps with an
+offset or `Z`. An assignment's play target covers the scheduled UTC day, from
+its scheduled time to midnight. Today's ad IDs identify schedules, not global
+campaigns. Historical playback is attributed through immutable driver
+assignments, so changing a phone or vehicle does not transfer prior earnings.
+Existing legacy `AdPlays` are preserved but are not automatically converted
+into payable driver earnings without a verified assignment/rate.
+
+### Administrator operations
+
+All routes below require SuperAdmin and are under
+`/api/v1/drivers/{driverId}`. They are available in **Cabs & drivers → View
+details → Driver operations**.
+
+| Method | Suffix | Request |
+| --- | --- | --- |
+| GET | `/operations` | Campaign choices, assignments, earnings, payouts and tickets |
+| POST | `/assignments` | `advertisementId`, `scheduledAt`, `targetPlays` (1–1,000,000), `ratePerPlay` (INR; 0.0001–10,000, maximum 4 decimals) |
+| PUT | `/assignments/{id}` | `status`: `assigned`, `paused`, `completed`; completed is final |
+| POST | `/assignments/{id}/plays` | UUID `requestId`, positive `plays`, `playedAt`; independently verified playback only |
+| POST | `/payouts` | Unique `transactionId`, `amount` (INR; 2 decimals), `periodStart`, `periodEnd`, `scheduledAt` |
+| PUT | `/payouts/{id}` | `status`: `processing`, `released`, `failed`; external `reference` required for released |
+| POST | `/notifications` | `title` (255 characters), `message` (2000 characters) |
+| GET | `/issues/{id}` | Driver-scoped ticket details with private attachment/history |
+| PUT | `/issues/{id}` | `status`: `under_review`, `in_progress`, `resolved`, `rejected`; required `note` |
+
+Rates and schedules are immutable; pause/complete an assignment and create a
+new one to change them. Assignments cannot overallocate the remaining campaign
+target. Unused targets of completed assignments are released. Verified plays
+cannot exceed an assignment or campaign target and must occur during the
+assigned day, not in the future. Request IDs prevent duplicate accrual; amounts
+are stored with four decimals and campaign `AdPlays`/`ActualPlays` are updated
+in the same transaction. Drivers cannot self-report payable playback.
+
+Payouts are **ledger records, not bank transfers**. Transfer funds externally
+and then record the reference. Outstanding pending/processing/released
+payouts reserve earned funds; failed payouts release the reservation.
+Overlapping payout periods conservatively count all existing reservations to
+prevent double payment of a period. Released/failed records are final; retry
+failed transfers using a new transaction ID. Earnings pending means earned
+funds less released/processing funds, including scheduled pending payouts.
+Writes protecting assignment targets, payout balances and ticket transitions
+use serializable transactions. Confirmed tickets are final; drivers must reopen
+other closed tickets before an administrator can respond again.
+
+Photos and attachments use the existing Azure storage service in the private
+`driver-private` container and return read-only 15-minute SAS URLs. Configure
+Azure Blob Storage credentials and keep this container non-public. Storage
+failures are errors, not successful fake uploads. No device heartbeat integration
+is supplied; an assigned screen's connection state is `unknown` rather than
+invented online/offline telemetry. Playback status `playing` means assignment
+progress, not a live player connection.
+
 ## Client dashboard
 
 These routes are relative to the server origin (not `/api/v1`). They require an

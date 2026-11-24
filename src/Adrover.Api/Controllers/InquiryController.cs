@@ -93,6 +93,7 @@ public sealed class InquiryController(
         {
             Id = Guid.NewGuid(),
             Name = inquiry["name"],
+            BusinessName = inquiry["business"],
             Email = inquiry["email"],
             Phone = normalizedPhone ?? inquiry["phone"],
             Subject = inquiry["goal"],
