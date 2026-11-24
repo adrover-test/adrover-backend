@@ -673,7 +673,7 @@ public class AdminController : ControllerBase
     [HttpGet("enquiries")]
     public async Task<IActionResult> GetEnquiries(
         [FromQuery] string? search,
-        [FromQuery] string? status,
+        [FromQuery] string? status, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         try
