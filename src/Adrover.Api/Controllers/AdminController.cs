@@ -507,8 +507,8 @@ public class AdminController : ControllerBase
                 ClientsPresent = await _dbContext.Users.AsNoTracking()
                     .CountAsync(user => user.Role == UserRole.Client, cancellationToken),
                 Enquiries = await _dbContext.Enquiries.AsNoTracking().CountAsync(cancellationToken),
-                CabsInDirectory = await _dbContext.Users.AsNoTracking()
-                    .CountAsync(user => user.Role == UserRole.Driver && user.IsActive, cancellationToken),
+                CabsInDirectory = await _dbContext.Drivers.AsNoTracking()
+                    .CountAsync(driver => driver.IsActive, cancellationToken),
                 AdsAwaitingApproval = await _dbContext.Advertisements.AsNoTracking()
                     .CountAsync(advertisement => advertisement.Status == AdvertisementStatus.PendingApproval, cancellationToken),
                 TotalAds = await _dbContext.Advertisements.AsNoTracking().CountAsync(cancellationToken),
@@ -624,7 +624,6 @@ public class AdminController : ControllerBase
     /// <summary>
     /// Get enquiries list for admin enquiries page
     /// </summary>
-    [AllowAnonymous]
     [HttpGet("enquiries")]
     public async Task<IActionResult> GetEnquiries(
         [FromQuery] string? search,
@@ -735,14 +734,17 @@ public class AdminController : ControllerBase
         {
             var adminId = GetUserIdFromToken();
 
-            // Placeholder for user statistics
+            var totalUsers = await _dbContext.Users.CountAsync();
+            var activeUsers = await _dbContext.Users.CountAsync(user => user.IsActive);
+            var clientsCount = await _dbContext.Users.CountAsync(user => user.Role == UserRole.Client);
+            var driversCount = await _dbContext.Drivers.CountAsync();
             var stats = new
             {
-                totalUsers = 0,
-                activeUsers = 0,
-                inactiveUsers = 0,
-                clientsCount = 0,
-                driversCount = 0,
+                totalUsers,
+                activeUsers,
+                inactiveUsers = totalUsers - activeUsers,
+                clientsCount,
+                driversCount,
                 lastUpdated = DateTime.UtcNow
             };
 

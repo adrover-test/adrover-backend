@@ -1,8 +1,16 @@
 using Serilog;
 using Adrover.Api.Configuration;
 using Adrover.Api.Middleware;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var configuredJwtKey = builder.Configuration["Jwt:SecretKey"];
+if (!builder.Environment.IsDevelopment() &&
+    (string.IsNullOrWhiteSpace(configuredJwtKey) ||
+     System.Text.Encoding.UTF8.GetByteCount(configuredJwtKey) < 32 ||
+     configuredJwtKey.StartsWith("adrover-super-secret-key", StringComparison.Ordinal)))
+    throw new InvalidOperationException("Configure a unique, secure JWT signing key outside development.");
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -30,6 +38,19 @@ try
     // Add services
     builder.Services.AddControllers();
     builder.Services.AddApplicationServices(builder.Configuration);
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy("driver-login", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+    });
     
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
@@ -49,6 +70,7 @@ try
     app.UseCors("AllowAll");
 
     app.UseApplicationMiddleware(app.Environment);
+    app.UseRateLimiter();
     
     app.MapControllers();
     

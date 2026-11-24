@@ -12,6 +12,7 @@ namespace Adrover.Infrastructure.Services;
 public interface ITokenService
 {
     string GenerateAccessToken(User user);
+    string GenerateDriverAccessToken(Driver driver);
     string GenerateRefreshToken();
     ClaimsPrincipal? ValidateToken(string token);
     JwtSecurityToken? DecodeToken(string token);
@@ -34,17 +35,37 @@ public class TokenService : ITokenService
 
     public string GenerateAccessToken(User user)
     {
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-        var claims = new List<Claim>
+        return GenerateToken(new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Role, user.Role.ToString()),
             new("Phone", user.Phone)
-        };
+        });
+    }
+
+    public string GenerateDriverAccessToken(Driver driver)
+    {
+        return GenerateToken(new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, driver.Id.ToString()),
+            new(ClaimTypes.Email, driver.Email),
+            new(ClaimTypes.Name, driver.FullName),
+            new(ClaimTypes.Role, UserRole.Driver.ToString()),
+            new("Phone", driver.Phone),
+            new("driver_account", "true"),
+            new("driver_version", GetDriverVersion(driver.PasswordHash))
+        });
+    }
+
+    public static string GetDriverVersion(string passwordHash) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(passwordHash)));
+
+    private string GenerateToken(List<Claim> claims)
+    {
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
             issuer: _issuer,
