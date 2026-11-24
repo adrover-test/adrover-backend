@@ -581,6 +581,7 @@ public class AdminController : ControllerBase
             var total = await query.CountAsync(cancellationToken);
             var items = await query
                 .OrderByDescending(user => user.CreatedAt)
+                .ThenBy(user => user.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .Select(user => new AdminClientListItemDto
@@ -589,10 +590,55 @@ public class AdminController : ControllerBase
                     ClientOrBusiness = user.FullName,
                     ContactName = user.FullName,
                     Email = user.Email,
-                    Phone = string.IsNullOrWhiteSpace(user.Phone) ? "Not provided" : user.Phone,
-                    Advertisements = _dbContext.Advertisements.Count(advertisement => advertisement.ClientId == user.Id)
+                    Phone = string.IsNullOrWhiteSpace(user.Phone) ? "Not provided" : user.Phone
                 })
                 .ToListAsync(cancellationToken);
+
+            var clientIds = items.Select(client => client.ClientId).ToArray();
+            var advertisements = clientIds.Length == 0
+                ? new List<Advertisement>()
+                : await _dbContext.Advertisements
+                    .AsNoTracking()
+                    .Where(advertisement => clientIds.Contains(advertisement.ClientId))
+                    .OrderByDescending(advertisement => advertisement.SubmittedAt)
+                    .ToListAsync(cancellationToken);
+            var advertisementsByClient = advertisements
+                .GroupBy(advertisement => advertisement.ClientId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(advertisement => new AdvertisementDto
+                    {
+                        Id = advertisement.Id,
+                        ClientId = advertisement.ClientId,
+                        Name = advertisement.Name,
+                        Brand = advertisement.Brand,
+                        Description = advertisement.Description,
+                        TargetArea = advertisement.TargetArea,
+                        VideoUrl = advertisement.VideoUrl,
+                        ImageUrl = advertisement.ImageUrl,
+                        VideoDurationSeconds = advertisement.VideoDurationSeconds,
+                        StartDate = advertisement.StartDate,
+                        EndDate = advertisement.EndDate,
+                        TargetPlays = advertisement.TargetPlays,
+                        ActualPlays = advertisement.ActualPlays,
+                        AssignedCabs = advertisement.AssignedCabs,
+                        Status = advertisement.Status.ToString(),
+                        ApprovalAmount = advertisement.ApprovalAmount,
+                        PaidAmount = advertisement.PaidAmount,
+                        RejectionReason = advertisement.RejectionReason,
+                        SubmittedAt = advertisement.SubmittedAt,
+                        UpdatedAt = advertisement.UpdatedAt
+                    }).ToList());
+
+            foreach (var client in items)
+            {
+                if (advertisementsByClient.TryGetValue(client.ClientId, out var campaigns))
+                {
+                    client.Campaigns = campaigns;
+                }
+
+                client.Advertisements = client.Campaigns.Count;
+            }
 
             return Ok(new ApiResponse<AdminClientListResponseDto>
             {
@@ -666,6 +712,9 @@ public class AdminController : ControllerBase
             var total = await query.CountAsync(cancellationToken);
             var items = await query
                 .OrderByDescending(enquiry => enquiry.CreatedAt)
+                .ThenBy(enquiry => enquiry.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .Select(enquiry => new AdminEnquiryListItemDto
                 {
                     EnquiryId = enquiry.Id,

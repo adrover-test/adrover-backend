@@ -1,3 +1,5 @@
+using Adrover.Application.DTOs.Advertisement;
+
 namespace Adrover.Application.DTOs;
 
 public sealed class AdminClientListItemDto
@@ -8,6 +10,7 @@ public sealed class AdminClientListItemDto
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public int Advertisements { get; set; }
+    public List<AdvertisementDto> Campaigns { get; set; } = new();
 }
 
 public sealed class AdminClientListResponseDto
