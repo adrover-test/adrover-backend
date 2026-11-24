@@ -51,6 +51,6 @@ public class RefreshToken
     public DateTime CreatedAt { get; set; }
     public DateTime? RevokedAt { get; set; }
     public bool IsActive => RevokedAt == null && DateTime.UtcNow < ExpiresAt;
-    
+
     public virtual User? User { get; set; }
 }

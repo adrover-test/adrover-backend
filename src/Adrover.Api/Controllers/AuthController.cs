@@ -41,6 +41,9 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<ApiResponse<UserDto>>> Register([FromBody] RegisterRequest request)
     {
+        if (request.Role != "Client")
+            return BadRequest(new ApiResponse<UserDto> { Success = false, Message = "Only client registration is available." });
+
         var validationResult = await _registerValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
         {
@@ -107,20 +110,25 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     public Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request) =>
-        LoginCoreAsync(request, clientOnly: false);
+        LoginCoreAsync(request, requiredRole: null);
 
     [HttpPost("client-login")]
     public Task<ActionResult<ApiResponse<AuthResponse>>> ClientLogin([FromBody] LoginRequest request) =>
-        LoginCoreAsync(request, clientOnly: true);
+        LoginCoreAsync(request, UserRole.Client);
 
-    private async Task<ActionResult<ApiResponse<AuthResponse>>> LoginCoreAsync(LoginRequest request, bool clientOnly)
+    [HttpPost("admin-login")]
+    public Task<ActionResult<ApiResponse<AuthResponse>>> AdminLogin([FromBody] LoginRequest request) =>
+        LoginCoreAsync(request, UserRole.SuperAdmin);
+
+    private async Task<ActionResult<ApiResponse<AuthResponse>>> LoginCoreAsync(LoginRequest request, UserRole? requiredRole)
     {
         var validationResult = await _loginValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
-        {
-            var validationException = new FluentValidation.ValidationException(validationResult.Errors);
-            throw validationException;
-        }
+            return BadRequest(new ApiResponse<AuthResponse>
+            {
+                Success = false,
+                Message = "Enter a valid email address and password."
+            });
 
         var user = await _userRepository.GetByEmailAsync(request.Email);
         if (user == null)
@@ -129,11 +137,8 @@ public class AuthController : ControllerBase
         if (!user.IsActive)
             throw new AuthenticationException("Account is disabled");
 
-        var adminBypass = string.Equals(request.Email, "admin@adrover.in", StringComparison.OrdinalIgnoreCase)
-            && request.Password == "admin";
-        if (!adminBypass
-            && (!_passwordService.VerifyPassword(request.Password, user.PasswordHash)
-                || (clientOnly && user.Role != UserRole.Client)))
+        if (!_passwordService.VerifyPassword(request.Password, user.PasswordHash)
+            || (requiredRole.HasValue && user.Role != requiredRole.Value))
         {
             throw new AuthenticationException("Invalid email or password");
         }

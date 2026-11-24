@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
+using System.Security.Claims;
 
 namespace Adrover.Api.Configuration;
 
@@ -40,7 +41,28 @@ public static class ServiceConfiguration
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.MapInboundClaims = false;
+                options.MapInboundClaims = true;
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        if (context.Principal?.FindFirst("driver_account")?.Value != "true")
+                            return;
+                        var id = context.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                        var version = context.Principal.FindFirst("driver_version")?.Value;
+                        if (!Guid.TryParse(id, out var driverId) || string.IsNullOrEmpty(version))
+                        {
+                            context.Fail("Invalid driver session.");
+                            return;
+                        }
+                        var db = context.HttpContext.RequestServices.GetRequiredService<AdRoverDbContext>();
+                        var driver = await db.Drivers.AsNoTracking()
+                            .SingleOrDefaultAsync(d => d.Id == driverId);
+                        if (driver == null || !driver.IsActive ||
+                            TokenService.GetDriverVersion(driver.PasswordHash) != version)
+                            context.Fail("Driver session has expired.");
+                    }
+                };
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
